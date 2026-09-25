@@ -180,5 +180,22 @@ INSERT INTO tipo_despesa (descricao, categoria_pai) VALUES
 ('Impostos e Taxas (ITR/IPVA)', 'IMPOSTOS E TAXAS'),
 ('Aquisição de Máquinas', 'INVESTIMENTOS');
 
+CREATE TABLE usuario (
+id SERIAL PRIMARY KEY,
+nome_completo VARCHAR(255) NOT NULL,
+cpf_cnpj VARCHAR(18) NOT NULL UNIQUE,
+email VARCHAR(255) NOT NULL UNIQUE,
+senha VARCHAR(255) NOT NULL,
+ativo BOOLEAN NOT NULL DEFAULT true,
+data_cadastro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Chave Estrangeira vinculando o Usuário do sistema ao Faturado da Nota
+    id_faturado INT UNIQUE,
+    CONSTRAINT fk_usuario_faturado 
+        FOREIGN KEY (id_faturado) 
+        REFERENCES faturado(id) 
+        ON DELETE SET NULL
+);
+
 
 # script funcionando organizado
