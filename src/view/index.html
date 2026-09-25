@@ -6,13 +6,85 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Extração de Dados de Nota Fiscal</title>
 
-    <!-- Arquivo CSS da pasta public/css/Style.css -->
     <link rel="stylesheet" href="/css/Style.css">
+
+    <style>
+        /* Posicionamento do botão de Usuário e Dropdown */
+        .user-nav {
+            position: relative;
+            display: inline-block;
+        }
+
+        .user-button {
+            background-color: #ffffff;
+            border: 1px solid #e1e1e1;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .user-button:hover {
+            background-color: #f8f9fa;
+            border-color: #ccc;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 45px;
+            background-color: #ffffff;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #eaeaea;
+            z-index: 1000;
+        }
+
+        .dropdown-menu a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .dropdown-menu a:hover {
+            background-color: #f1f3f5;
+        }
+
+        /* Classe para alternar exibição do menu */
+        .show {
+            display: block;
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="container">
+
+    <!-- Botão de Usuário no Canto Superior Direito -->
+    <div class="top-bar">
+        <div class="user-nav">
+            <button class="user-button" onclick="toggleUserMenu()">
+                👤 <span id="userNameDisplay">Minha Conta</span> ▾
+            </button>
+            <div id="userDropdown" class="dropdown-menu">
+                <!-- O conteúdo aqui é preenchido dinamicamente pelo JavaScript -->
+            </div>
+        </div>
+    </div>
 
     <!-- Cabeçalho -->
     <div class="header">
@@ -74,8 +146,76 @@
 
 </div>
 
-
 <script src="/js/Main.js"></script>
+
+<script>
+    // Executa assim que a página carregar
+    document.addEventListener("DOMContentLoaded", () => {
+        carregarSessaoUsuario();
+    });
+
+    // Função que verifica se há usuário logado no localStorage
+    function carregarSessaoUsuario() {
+        const usuarioSalvo = localStorage.getItem('usuarioLogado');
+        const nameDisplay = document.getElementById('userNameDisplay');
+        const dropdown = document.getElementById('userDropdown');
+
+        if (usuarioSalvo) {
+            const usuario = JSON.parse(usuarioSalvo);
+
+            // Pega apenas o primeiro nome para exibição no botão
+            const primeiroNome = usuario.nome_completo ? usuario.nome_completo.split(' ')[0] : 'Usuário';
+
+            nameDisplay.innerText = `Olá, ${primeiroNome}`;
+
+            // Opções para usuário LOGADO
+            dropdown.innerHTML = `
+                <div style="padding: 10px 16px; font-size: 11px; color: #777; border-bottom: 1px solid #eee;">
+                    <strong>${usuario.nome_completo}</strong><br>
+                    ${usuario.email}
+                </div>
+                <a href="#" onclick="fazerLogout(event)" style="color: #d32f2f;">🚪 Sair da Conta</a>
+            `;
+        } else {
+            // Opções para usuário NÃO LOGADO
+            nameDisplay.innerText = "Minha Conta";
+            dropdown.innerHTML = `
+                <a href="/login">🔑 Entrar (Login)</a>
+                <a href="/registro">📝 Criar Conta</a>
+            `;
+        }
+    }
+
+    // Função de Logout
+    function fazerLogout(event) {
+        event.preventDefault();
+
+        // Remove os dados da sessão salva
+        localStorage.removeItem('usuarioLogado');
+
+        alert('Sessão encerrada com sucesso!');
+        // Recarrega a página para atualizar o menu
+        window.location.reload();
+    }
+
+    // Função para abrir/fechar o dropdown
+    function toggleUserMenu() {
+        document.getElementById("userDropdown").classList.toggle("show");
+    }
+
+    // Fecha o menu ao clicar fora dele
+    window.onclick = function(event) {
+        if (!event.target.matches('.user-button') && !event.target.matches('.user-button *')) {
+            const dropdowns = document.getElementsByClassName("dropdown-menu");
+            for (let i = 0; i < dropdowns.length; i++) {
+                const openDropdown = dropdowns[i];
+                if (openDropdown.classList.contains('show')) {
+                    openDropdown.classList.remove('show');
+                }
+            }
+        }
+    }
+</script>
 
 </body>
 

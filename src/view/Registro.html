@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar na Sala</title>
+
+    <link rel="stylesheet" href="/css/Style.css">
+</head>
+<body>
+
+<div class="container">
+    <h2>Criar usuario</h2>
+    <form id="formRegistro" action="/api/auth/registro" method="POST">
+        <div class="form-group">
+            <label for="nomeCompleto">Nome *</label>
+            <input type="text" id="nomeCompleto" name="nomeCompleto" placeholder="Seu nome" required>
+        </div>
+
+        <div class="form-group">
+            <label for="cpfCnpj">CPF / CNPJ</label>
+            <input type="text" id="cpfCnpj" name="cpfCnpj" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="text" id="email" name="email" placeholder="seuemail@teste.com" required>
+        </div>
+
+        <div class="form-group">
+            <label for="senha">Senha *</label>
+            <input type="text" id="senha" name="senha" placeholder="SuaSenha123" required>
+        </div>
+
+        <button type="submit" class="btn">Registrar Usuário</button>
+    </form>
+
+    <div class="footer-link">
+        <p>Já tem Conta? <a href="/login">Clique aqui</a></p>
+    </div>
+</div>
+
+<script>
+    document.getElementById('formRegistro').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Obtém os dados dos inputs do formulário
+        const nome_completo = document.getElementById('nomeCompleto').value.trim();
+        const cpf_cnpj = document.getElementById('cpfCnpj').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const senha = document.getElementById('senha').value;
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+
+        try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "Cadastrando...";
+
+            const response = await fetch('/api/auth/registro', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    nome_completo,
+                    cpf_cnpj,
+                    email,
+                    senha
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro ao realizar cadastro.');
+            }
+
+            alert('Cadastro realizado com sucesso! Redirecionando para o login...');
+            window.location.href = '/login';
+
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "CRIAR CONTA";
+        }
+    });
+</script>
+</body>
+</html>

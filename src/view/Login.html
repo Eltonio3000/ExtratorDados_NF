@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar na Sala</title>
+
+    <link rel="stylesheet" href="/css/Style.css">
+</head>
+<body>
+
+<div class="container">
+    <h2>Entrar na conta</h2>
+    <form id="formLogin" action="/api/auth/login" method="POST">
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="text" id="email" name="email" placeholder="seuemail@teste.com" required>
+        </div>
+
+        <div class="form-group">
+            <label for="senha">Senha *</label>
+            <input type="text" id="senha" name="senha" placeholder="SuaSenha123" required>
+        </div>
+
+        <button type="submit" class="btn">Entrar</button>
+    </form>
+
+    <div class="footer-link">
+        <p>Não tem conta? <a href="/registro">Clique aqui</a></p>
+    </div>
+</div>
+
+<script>
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value.trim();
+        const senha = document.getElementById('senha').value;
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+
+        try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "Entrando...";
+
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, senha })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Falha ao autenticar.');
+            }
+
+            // Salva as informações básicas do usuário no localStorage para manter a sessão
+            localStorage.setItem('usuarioLogado', JSON.stringify(data.user));
+
+            alert('Login efetuado com sucesso!');
+            window.location.href = '/dashboard';
+
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "ENTRAR";
+        }
+    });
+</script>
+</body>
+</html>

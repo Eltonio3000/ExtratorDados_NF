@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Routes from './src/routes/Routes.js';
-import multer from "multer";
 
 dotenv.config();
 
@@ -24,8 +23,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'src/view')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Registra os módulos de rotas sob o prefixo /api
-app.use('/api', Routes);
+app.use(Routes);
+
+app.get('/', (req, res) => {
+    res.redirect('/dashboard');
+});
 
 // Tratamento centralizado de erros do Express/Multer
 app.use((err, req, res, next) => {
