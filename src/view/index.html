@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extração de Dados de Nota Fiscal</title>
+
+    <!-- Arquivo CSS da pasta public/css/Style.css -->
+    <link rel="stylesheet" href="/css/Style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- Cabeçalho -->
+    <div class="header">
+        <h1>Extração de Dados de Nota Fiscal</h1>
+        <p>Carregue um PDF de nota fiscal e extraia os dados automaticamente usando IA</p>
+    </div>
+
+    <!-- Upload -->
+    <div class="card">
+        <div class="upload-title">
+            <span>↥</span> Upload do PDF
+        </div>
+
+        <label class="label" for="pdfInput">
+            Selecione o arquivo PDF da nota fiscal
+        </label>
+
+        <input class="file-input" type="file" id="pdfInput" accept=".pdf,application/pdf" onchange="mostrarPreviewArquivo()">
+
+        <!-- Preview do arquivo selecionado -->
+        <div id="filePreview" class="file-preview" style="display: none;">
+            📄 <span id="fileName" class="file-name"></span>
+            <span id="fileSize" class="file-size"></span>
+        </div>
+
+        <!-- Botão -->
+        <button id="btnExtrair" class="extract-button" onclick="enviarPDF()">
+            ◉ &nbsp; EXTRAIR DADOS
+        </button>
+    </div>
+
+    <!-- Dados Extraídos -->
+    <div class="card results">
+        <div class="results-title">
+            Dados Extraídos
+        </div>
+
+        <!-- Cabeçalho JSON -->
+        <div class="json-header">
+            <div class="json-title">
+                &lt;/&gt; Dados em JSON
+            </div>
+
+            <button class="copy-button" onclick="copiarJSON()">
+                ⧉ &nbsp; Copiar JSON
+            </button>
+        </div>
+
+        <!-- JSON Container -->
+        <div class="json-container">
+            <pre id="jsonOutput">// Os dados extraídos do PDF aparecerão aqui...</pre>
+        </div>
+
+        <p class="description">
+            Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado
+            para integração com outros sistemas.
+        </p>
+    </div>
+
+</div>
+
+
+<script src="/js/Main.js"></script>
+
+</body>
+
+</html>

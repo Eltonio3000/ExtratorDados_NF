@@ -1,0 +1,13 @@
+# Dependências do Node.js
+node_modules/*
+
+
+# Variáveis de ambiente
+.env
+
+# Arquivos temporários enviados pelos usuários
+uploads/*
+!uploads/.gitkeep
+
+# Arquivos de configuração de IDEs
+.idea/
