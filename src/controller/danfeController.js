@@ -10,7 +10,7 @@ export async function extrairDadosPDF(req, res) {
 
     const dadosExtraidos = await processarNotaFiscalPDF(req.file.path);
 
-    // Opcional: deletar arquivo temporário da pasta uploads após leitura
+    // deletar arquivo temporário da pasta uploads após leitura
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
