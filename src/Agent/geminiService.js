@@ -37,7 +37,7 @@ export async function processarNotaFiscalPDF(caminhoArquivo) {
     Quantidade de Parcelas
     Data de Vencimento
     ValorTotal
-    Classificação da DESPESA
+    Classificação da nota fiscal
     
     Classifique a DESPESA com base nos itens da nota seguindo estas categorias:
     - INSUMOS AGRÍCOLAS 
@@ -104,7 +104,7 @@ export async function processarNotaFiscalPDF(caminhoArquivo) {
       quantidadeParcelas: { type: Type.INTEGER },
       dataVencimento: { type: Type.STRING },
       valorTotal: { type: Type.NUMBER },
-      classificacaoDespesa: { type: Type.STRING }
+      classificacao: { type: Type.STRING }
     },
     required: [
       "fornecedor",
@@ -115,7 +115,7 @@ export async function processarNotaFiscalPDF(caminhoArquivo) {
       "quantidadeParcelas",
       "dataVencimento",
       "valorTotal",
-      "classificacaoDespesa"
+      "classificacao"
     ]
   };
 

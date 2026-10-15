@@ -144,6 +144,22 @@
         </p>
     </div>
 
+    <!-- Card de Consulta no Banco de Dados (Inicia Oculto) -->
+    <div id="cardConsulta" class="card" style="display: none; margin-top: 20px;">
+        <h3 style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+            Mostrar resposta da consulta na tela:
+        </h3>
+
+        <div id="resultadoConsulta" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a;">
+            <!-- Preenchido via JavaScript no formato da imagem -->
+        </div>
+
+        <!-- Botão para Salvar e Ir para o Dashboard -->
+        <button id="btnSalvarNota" class="extract-button" onclick="salvarERegistrarNota()" style="margin-top: 20px; background-color: #2e7d32;">
+            💾 SALVAR REGISTRO E IR PARA O DASHBOARD
+        </button>
+    </div>
+
 </div>
 
 <script src="/js/Main.js"></script>
@@ -213,6 +229,125 @@
                     openDropdown.classList.remove('show');
                 }
             }
+        }
+    }
+
+    let dadosUltimaExtracao = null;
+    let dadosVerificacao = null;
+
+    // Função chamada após a IA extrair o JSON
+    async function processarVerificacaoBanco(dadosJSON) {
+        dadosUltimaExtracao = dadosJSON;
+
+        // Extrai os campos com fallback
+        const payloadConsulta = {
+            fornecedor: {
+                razao_social: dadosJSON.fornecedor?.razaoSocial || '',
+                cnpj: dadosJSON.fornecedor?.cnpj || ''
+            },
+            faturado: {
+                nome_completo: dadosJSON.faturado?.nomeCompleto || '',
+                cpf: dadosJSON.faturado?.cpf || ''
+            },
+            classificacao: dadosJSON.classificacao || ''
+        };
+
+        try {
+            const response = await fetch('/api/extrair/consultar-existencia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadConsulta)
+            });
+
+            dadosVerificacao = await response.json();
+            renderizarResultadoConsulta(dadosVerificacao);
+
+        } catch (err) {
+            console.error('Erro ao consultar banco:', err);
+        }
+    }
+
+    // Renderiza o HTML exatamente conforme o modelo da imagem
+    function renderizarResultadoConsulta(res) {
+        const container = document.getElementById('resultadoConsulta');
+        const cardConsulta = document.getElementById('cardConsulta');
+
+        const htmlForn = `
+        <div style="margin-bottom: 15px;">
+            <strong>FORNECEDOR:</strong><br>
+            ${res.fornecedor.dados.razao_social || 'NÃO INFORMADO'}<br>
+            CNPJ: ${res.fornecedor.dados.cnpj || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.fornecedor.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.fornecedor.existe ? `EXISTE – ID: ${res.fornecedor.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+        const htmlFat = `
+        <div style="margin-bottom: 15px;">
+            <strong>FATURADO</strong><br>
+            ${res.faturado.dados.nome_completo || 'NÃO INFORMADO'}<br>
+            CPF: ${res.faturado.dados.cpf || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.faturado.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.faturado.existe ? `EXISTE – ID: ${res.faturado.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+        const htmlDesp = `
+        <div style="margin-bottom: 15px;">
+            <strong>DESPESA</strong><br>
+            ${res.despesa.classificacao || 'NÃO INFORMADA'}<br>
+            <span style="font-weight: bold; color: ${res.despesa.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.despesa.existe ? `EXISTE – ID: ${res.despesa.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+        container.innerHTML = htmlForn + htmlFat + htmlDesp;
+        cardConsulta.style.display = 'block';
+    }
+
+    // Salva tudo no banco e redireciona
+    async function salvarERegistrarNota() {
+        const usuarioSalvo = localStorage.getItem('usuarioLogado');
+        if (!usuarioSalvo) {
+            alert('Por favor, faça login para salvar esta nota fiscal.');
+            window.location.href = '/login';
+            return;
+        }
+
+        const usuario = JSON.parse(usuarioSalvo);
+        const btn = document.getElementById('btnSalvarNota');
+
+        try {
+            btn.disabled = true;
+            btn.innerText = 'Salvando no banco de dados...';
+
+            const response = await fetch('/api/extrair/salvar-nota', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id_usuario: usuario.id,
+                    dadosExtraidos: dadosUltimaExtracao,
+                    verificacao: dadosVerificacao
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro ao salvar registro.');
+            }
+
+            alert('Nota Fiscal registrada com sucesso!');
+            window.location.href = '/dashboard';
+
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = '💾 SALVAR REGISTRO E IR PARA O DASHBOARD';
         }
     }
 </script>

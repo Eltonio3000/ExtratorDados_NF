@@ -50,6 +50,11 @@ async function enviarPDF() {
 
         const data = await response.json();
         jsonOutput.textContent = JSON.stringify(data, null, 2);
+
+        // Chama a consulta ao banco de dados assim que os dados do Gemini forem retornados
+        if (typeof processarVerificacaoBanco === 'function') {
+            await processarVerificacaoBanco(data);
+        }
     } catch (err) {
         console.error(err);
         jsonOutput.textContent = "Erro ao extrair dados da nota fiscal. Verifique se o servidor está em execução.";
