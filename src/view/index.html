@@ -86,6 +86,25 @@
         </div>
     </div>
 
+    <div class="mb-4">
+        <label class="form-label text-light fw-semibold mb-2">Tipo de Nota Fiscal:</label>
+        <div class="toggle-tipo-container">
+            <!-- Receita (Lado Esquerdo) -->
+            <input type="radio" name="tipoRegistro" id="tipoReceita" value="Receita" class="btn-check-custom">
+            <label for="tipoReceita" class="opcao-card opcao-receita">
+                <i class="fa-solid fa-arrow-down"></i>
+                <span>Receita</span>
+            </label>
+
+            <!-- Despesa (Lado Direito - Selecionado por Padrão) -->
+            <input type="radio" name="tipoRegistro" id="tipoDespesa" value="Despesa" class="btn-check-custom" checked>
+            <label for="tipoDespesa" class="opcao-card opcao-despesa">
+                <i class="fa-solid fa-arrow-up"></i>
+                <span>Despesa</span>
+            </label>
+        </div>
+    </div>
+
     <!-- Cabeçalho -->
     <div class="header">
         <h1>Extração de Dados de Nota Fiscal</h1>
@@ -239,9 +258,11 @@
     // Função chamada após a IA extrair o JSON
     async function processarVerificacaoBanco(dadosJSON) {
         dadosUltimaExtracao = dadosJSON;
+        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value
 
         // Extrai os campos com fallback
         const payloadConsulta = {
+            tipo_registro: tipoRegistroSelecionado,
             fornecedor: {
                 razao_social: dadosJSON.fornecedor?.razaoSocial || '',
                 cnpj: dadosJSON.fornecedor?.cnpj || ''
@@ -273,34 +294,46 @@
         const container = document.getElementById('resultadoConsulta');
         const cardConsulta = document.getElementById('cardConsulta');
 
+        if (!container || !cardConsulta) return;
+
+        // Obtém o rótulo ("DESPESA" ou "RECEITA") do toggle selecionado
+        const tipoSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value || 'Despesa';
+        const tituloTipo = tipoSelecionado.toUpperCase();
+
         const htmlForn = `
         <div style="margin-bottom: 15px;">
             <strong>FORNECEDOR:</strong><br>
-            ${res.fornecedor.dados.razao_social || 'NÃO INFORMADO'}<br>
-            CNPJ: ${res.fornecedor.dados.cnpj || 'N/A'}<br>
-            <span style="font-weight: bold; color: ${res.fornecedor.existe ? '#0070f3' : '#d32f2f'};">
-                ${res.fornecedor.existe ? `EXISTE – ID: ${res.fornecedor.id}` : 'NÃO EXISTE'}
+            ${res.fornecedor?.dados?.razao_social || 'NÃO INFORMADO'}<br>
+            CNPJ: ${res.fornecedor?.dados?.cnpj || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.fornecedor?.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.fornecedor?.existe ? `EXISTE – ID: ${res.fornecedor.id}` : 'NÃO EXISTE'}
             </span>
         </div>
     `;
 
-        const htmlFat = `
+            const htmlFat = `
         <div style="margin-bottom: 15px;">
             <strong>FATURADO</strong><br>
-            ${res.faturado.dados.nome_completo || 'NÃO INFORMADO'}<br>
-            CPF: ${res.faturado.dados.cpf || 'N/A'}<br>
-            <span style="font-weight: bold; color: ${res.faturado.existe ? '#0070f3' : '#d32f2f'};">
-                ${res.faturado.existe ? `EXISTE – ID: ${res.faturado.id}` : 'NÃO EXISTE'}
+            ${res.faturado?.dados?.nome_completo || 'NÃO INFORMADO'}<br>
+            CPF: ${res.faturado?.dados?.cpf || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.faturado?.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.faturado?.existe ? `EXISTE – ID: ${res.faturado.id}` : 'NÃO EXISTE'}
             </span>
         </div>
     `;
 
-        const htmlDesp = `
+            // Garante compatibilidade caso o backend envie res.tipo ou res.despesa
+            const objetoTipo = res.tipo || res.despesa || {};
+            const nomeClassificacao = typeof objetoTipo.classificacao === 'string'
+                ? objetoTipo.classificacao
+                : (objetoTipo.classificacao?.classificacao || 'NÃO INFORMADA');
+
+            const htmlDesp = `
         <div style="margin-bottom: 15px;">
-            <strong>DESPESA</strong><br>
-            ${res.despesa.classificacao || 'NÃO INFORMADA'}<br>
-            <span style="font-weight: bold; color: ${res.despesa.existe ? '#0070f3' : '#d32f2f'};">
-                ${res.despesa.existe ? `EXISTE – ID: ${res.despesa.id}` : 'NÃO EXISTE'}
+            <strong>${tituloTipo}</strong><br>
+            ${nomeClassificacao || 'NÃO INFORMADA'}<br>
+            <span style="font-weight: bold; color: ${objetoTipo.existe ? '#0070f3' : '#d32f2f'};">
+                ${objetoTipo.existe ? `EXISTE – ID: ${objetoTipo.id}` : 'NÃO EXISTE'}
             </span>
         </div>
     `;
@@ -312,6 +345,7 @@
     // Salva tudo no banco e redireciona
     async function salvarERegistrarNota() {
         const usuarioSalvo = localStorage.getItem('usuarioLogado');
+        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value;
         if (!usuarioSalvo) {
             alert('Por favor, faça login para salvar esta nota fiscal.');
             window.location.href = '/login';
@@ -330,6 +364,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id_usuario: usuario.id,
+                    tipo_registro: tipoRegistroSelecionado,
                     dadosExtraidos: dadosUltimaExtracao,
                     verificacao: dadosVerificacao
                 })

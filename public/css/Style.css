@@ -224,6 +224,63 @@ input:focus { border-color: #38bdf8; }
 .footer-link a { color: #38bdf8; text-decoration: none; font-weight: 500; }
 .footer-link a:hover { text-decoration: underline; }
 
+.toggle-tipo-container {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+}
+
+/* Esconde a bolinha padrão do radio button */
+.btn-check-custom {
+    display: none;
+}
+
+/* Estilo base dos cards clicáveis */
+.opcao-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 2px solid #3d4452;
+    border-radius: 10px;
+    color: #a0aec0;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+/* Efeito ao passar o mouse por cima (Hover) */
+.opcao-card:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+/* =========================================================================
+   ESTADO SELECIONADO: Eleva o botão selecionado (translateY) e destaca a cor
+   ========================================================================= */
+
+/* Quando RECEITA é selecionada (Verde) */
+#tipoReceita:checked + .opcao-receita {
+    background-color: #198754;
+    border-color: #20c997;
+    color: #ffffff;
+    transform: translateY(-5px); /* Efeito de elevação para cima */
+    box-shadow: 0 8px 18px rgba(25, 135, 84, 0.4); /* Sombra 3D */
+}
+
+/* Quando DESPESA é selecionada (Vermelho) */
+#tipoDespesa:checked + .opcao-despesa {
+    background-color: #dc3545;
+    border-color: #ff6b6b;
+    color: #ffffff;
+    transform: translateY(-5px); /* Efeito de elevação para cima */
+    box-shadow: 0 8px 18px rgba(220, 53, 69, 0.4); /* Sombra 3D */
+}
+
 /* Responsividade */
 @media (max-width: 600px) {
     body {

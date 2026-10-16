@@ -35,60 +35,138 @@ router.post('/api/extrair-pdf', upload.single('pdfFile'), extrairDadosPDF);
 // ROTA DE VERIFICAÇÃO (Consulta no Banco)
 router.post('/api/extrair/consultar-existencia', async (req, res) => {
     try {
-        const { fornecedor, faturado, classificacao } = req.body;
+        const { tipo_registro, fornecedor, faturado, classificacao } = req.body;
 
-        // Consulta Fornecedor no Supabase (por CNPJ ou Razão Social)
+        const tabelaTPDestino = (tipo_registro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+
+        // -------------------------------------------------------------------------
+        // 1. CONSULTA FORNECEDOR (Busca estrita com máscara e nome exato)
+        // -------------------------------------------------------------------------
         let fornecedorExistente = null;
-        if (fornecedor?.cnpj || fornecedor?.razao_social) {
-            let query = supabase.from('fornecedor').select('id, razao_social, cnpj');
-            if (fornecedor.cnpj) {
-                query = query.eq('cnpj', fornecedor.cnpj);
-            } else {
-                query = query.ilike('razao_social', `%${fornecedor.razao_social}%`);
-            }
-            const { data } = await query.maybeSingle();
-            fornecedorExistente = data;
-        }
+        const cnpjFormatado = fornecedor?.cnpj?.trim();
+        const razaoLimpa = fornecedor?.razao_social?.trim();
 
-        // Consulta Faturado no Supabase (por CPF ou Nome)
-        let faturadoExistente = null;
-        if (faturado?.cpf || faturado?.nome_completo) {
-            let query = supabase.from('faturado').select('id, nome_completo, cpf');
-            if (faturado.cpf) {
-                query = query.eq('cpf', faturado.cpf);
-            } else {
-                query = query.ilike('nome_completo', `%${faturado.nome_completo}%`);
-            }
-            const { data } = await query.maybeSingle();
-            faturadoExistente = data;
-        }
-
-        // C. Consulta Tipo de Despesa no Supabase
-        let despesaExistente = null;
-        if (classificacao) {
+        // Se tem CNPJ com máscara, busca pelo CNPJ exato
+        if (cnpjFormatado && cnpjFormatado.length >= 14) {
             const { data } = await supabase
-                .from('tipo_despesa')
-                .select('id, categoria_pai')
-                .ilike('categoria_pai', `%${classificacao}%`)
-                .maybeSingle();
-            despesaExistente = data;
+                .from('fornecedor')
+                .select('id, razao_social, cnpj')
+                .eq('cnpj', cnpjFormatado)
+                .limit(1);
+
+            if (data && data.length > 0) {
+                fornecedorExistente = data[0];
+            }
         }
 
+        // Se não encontrou por CNPJ, tenta buscar pela Razão Social (busca exata sem % no início/fim)
+        if (!fornecedorExistente && razaoLimpa && razaoLimpa.length > 2) {
+            const { data } = await supabase
+                .from('fornecedor')
+                .select('id, razao_social, cnpj')
+                .ilike('razao_social', razaoLimpa) // Sem %, exige o texto exato
+                .limit(1);
+
+            if (data && data.length > 0) {
+                fornecedorExistente = data[0];
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // 2. CONSULTA FATURADO (Busca estrita com máscara e nome exato)
+        // -------------------------------------------------------------------------
+        let faturadoExistente = null;
+        const cpfFormatado = faturado?.cpf?.trim();
+        const nomeLimpo = faturado?.nome_completo?.trim();
+
+        // Se tem CPF, busca pelo CPF
+        if (cpfFormatado && cpfFormatado.length >= 11 && tipo_registro === 'Despesa' ) {
+            const { data } = await supabase
+                .from('faturado')
+                .select('id, nome_completo, cpf')
+                .eq('cpf', cpfFormatado)
+                .limit(1);
+
+            if (data && data.length > 0) {
+                faturadoExistente = data[0];
+            }
+        }
+
+        // Se não encontrou por CPF, tenta buscar pelo Nome
+        if (!faturadoExistente && nomeLimpo && nomeLimpo.length > 2 && tipo_registro === 'Despesa') {
+            const { data } = await supabase
+                .from('faturado')
+                .select('id, nome_completo, cpf')
+                .ilike('nome_completo', nomeLimpo) // Sem %, exige o nome exato
+                .limit(1);
+
+            if (data && data.length > 0) {
+                faturadoExistente = data[0];
+            }
+        }
+
+        const cpf_cnpjFormatado = cpfFormatado;
+
+        // Se tem CPF/cnpj, busca pelo CPF, tipo receita
+        if (cpf_cnpjFormatado && cpf_cnpjFormatado.length >= 11 && tipo_registro === 'Receita' ) {
+            const { data } = await supabase
+                .from('cliente')
+                .select('id, nome, cpf_cnpj')
+                .eq('cpf_cnpj', cpf_cnpjFormatado)
+                .limit(1);
+
+            if (data && data.length > 0) {
+                faturadoExistente = data[0];
+            }
+        }
+
+        // Se não encontrou por CPF/cnpj, tenta buscar pelo Nome, tipo receita
+        if (!faturadoExistente && nomeLimpo && nomeLimpo.length > 2 && tipo_registro === 'Receita') {
+            const { data } = await supabase
+                .from('cliente')
+                .select('id, nome, cpf_cnpj')
+                .eq('cpf_cnpj', cpf_cnpjFormatado)
+                .limit(1);
+
+            if (data && data.length > 0) {
+                faturadoExistente = data[0];
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // 3. CONSULTA CLASSIFICAÇÃO / TIPO
+        // -------------------------------------------------------------------------
+        let tipoExistente = null;
+        const classifLimpa = classificacao?.trim();
+
+        if (classifLimpa && classifLimpa.length > 2) {
+            const { data } = await supabase
+                .from(tabelaTPDestino)
+                .select('id, categoria_pai')
+                .ilike('categoria_pai', `%${classifLimpa}%`)
+                .limit(1);
+
+            if (data && data.length > 0) {
+                tipoExistente = data[0];
+            }
+        }
+
+        // Retorna EXISTE (true) APENAS se houver registro retornado na consulta do Supabase
         return res.json({
             fornecedor: {
                 dados: fornecedor,
-                existe: !!fornecedorExistente,
+                existe: Boolean(fornecedorExistente),
                 id: fornecedorExistente?.id || null
             },
             faturado: {
                 dados: faturado,
-                existe: !!faturadoExistente,
+                existe: Boolean(faturadoExistente),
                 id: faturadoExistente?.id || null
             },
-            despesa: {
+            tipo: {
                 classificacao: classificacao,
-                existe: !!despesaExistente,
-                id: despesaExistente?.id || null
+                existe: Boolean(tipoExistente),
+                id: tipoExistente?.id || null
             }
         });
 
@@ -101,11 +179,14 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
 // ROTA PARA SALVAR A NOTA E SEUS VÍNCULOS
 router.post('/api/extrair/salvar-nota', async (req, res) => {
     try {
-        const { id_usuario, dadosExtraidos, verificacao } = req.body;
+        const { id_usuario, tipo_registro, dadosExtraidos, verificacao } = req.body;
 
         if (!id_usuario) {
             return res.status(401).json({ error: 'Usuário não autenticado.' });
         }
+
+        const tabelaTPDestino = (tipo_registro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+        const tabelaAssDestino = (tipo_registro === 'Receita') ? 'conta_receber_tipo_receita' : 'conta_pagar_tipo_despesa';
 
         // Função auxiliar para converter DD/MM/AAAA ou AAAA-MM-DD para ISO YYYY-MM-DD
         function formatarDataParaBD(dataString) {
@@ -130,7 +211,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
         const numeroNota = dadosExtraidos.numeroNotaFiscal;
         let idFornecedor = verificacao.fornecedor.id;
         let idFaturado = verificacao.faturado.id;
-        let idTipoDespesa = verificacao.despesa.id;
+        let idTipoDoc = verificacao.tipo.id;
 
         // Cadastra Fornecedor se não existir
         if (!idFornecedor && verificacao.fornecedor.dados) {
@@ -147,81 +228,137 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
             idFornecedor = newForn.id;
         }
 
-        // Cadastra Faturado se não existir
-        if (!idFaturado && verificacao.faturado.dados) {
-            const { data: newFat, error: errFat } = await supabase
-                .from('faturado')
-                .insert([{
-                    nome_completo: verificacao.faturado.dados.nome_completo,
-                    cpf: verificacao.faturado.dados.cpf,
-                    ativo: true
-                }])
-                .select()
-                .single();
-            if (errFat) throw errFat;
-            idFaturado = newFat.id;
+        // Cadastra Faturado/Cliente dependendo do tipo de registro
+        if (!idFaturado && verificacao?.faturado?.dados) {
+            if (tipo_registro === 'Despesa') {
+                const { data: newFat, error: errFat } = await supabase
+                    .from('faturado')
+                    .insert([{
+                        nome_completo: verificacao.faturado.dados.nome_completo,
+                        cpf: verificacao.faturado.dados.cpf,
+                        ativo: true
+                    }])
+                    .select()
+                    .single();
+                if (errFat) throw errFat;
+                idFaturado = newFat.id;
+            } else {
+                const { data: newCli, error: errCli } = await supabase
+                    .from('cliente')
+                    .insert([{
+                        nome: verificacao.faturado.dados.nome_completo,
+                        cpf_cnpj: verificacao.faturado.dados.cpf,
+                        ativo: true
+                    }])
+                    .select()
+                    .single();
+                if (errCli) throw errCli;
+                idFaturado = newCli.id;
+            }
         }
 
         // =========================================================================
         // TRAVA DE DUPLICIDADE: Impede registro de NF idêntica para o mesmo faturado
         // =========================================================================
         if (numeroNota && dataEmissaoFormatada && idFaturado) {
-            const { data: notaExistente } = await supabase
-                .from('conta_pagar')
-                .select('id')
-                .eq('numero_nota_fiscal', numeroNota)
-                .eq('data_emissao', dataEmissaoFormatada)
-                .eq('id_faturado', idFaturado)
-                .maybeSingle();
+            if (tipo_registro === 'Despesa') {
+                const { data: notaExistente } = await supabase
+                    .from('conta_pagar')
+                    .select('id')
+                    .eq('numero_nota_fiscal', numeroNota)
+                    .eq('data_emissao', dataEmissaoFormatada)
+                    .eq('id_faturado', idFaturado)
+                    .maybeSingle();
 
-            if (notaExistente) {
-                return res.status(400).json({
-                    error: `A Nota Fiscal Nº ${numeroNota} emitida em ${dadosExtraidos.dataEmissao} já foi cadastrada anteriormente!`
-                });
+                if (notaExistente) {
+                    return res.status(400).json({
+                        error: `A Despesa Nº ${numeroNota} emitida em ${dataBruta || dataEmissaoFormatada} já foi cadastrada anteriormente!`
+                    });
+                }
+            } else {
+                const { data: notaExistente } = await supabase
+                    .from('conta_receber')
+                    .select('id')
+                    .eq('numero_documento', numeroNota)
+                    .eq('data_emissao', dataEmissaoFormatada)
+                    .eq('id_cliente', idFaturado)
+                    .maybeSingle();
+
+                if (notaExistente) {
+                    return res.status(400).json({
+                        error: `A Receita Nº ${numeroNota} emitida em ${dataBruta || dataEmissaoFormatada} já foi cadastrada anteriormente!`
+                    });
+                }
             }
         }
         // =========================================================================
 
-        // Cadastra Tipo de Despesa se não existir
-        if (!idTipoDespesa && verificacao.despesa.classificacao) {
+        // Cadastra Tipo de Despesa/Receita se não existir
+        if (!idTipoDoc && verificacao.tipo.classificacao) {
             const { data: newDesp, error: errDesp } = await supabase
-                .from('tipo_despesa')
+                .from(tabelaTPDestino)
                 .insert([{
                     descricao: "-",
-                    categoria_pai: verificacao.despesa.classificacao,
-                    ativo: true
+                    categoria_pai: verificacao.tipo.classificacao,
+                    ativo: true,
+                    criador: id_usuario
                 }])
                 .select()
                 .single();
             if (errDesp) throw errDesp;
-            idTipoDespesa = newDesp.id;
+            idTipoDoc = newDesp.id;
         }
 
-        // Registra a Conta a Pagar
-        const { data: contaPagar, error: errConta } = await supabase
-            .from('conta_pagar')
-            .insert([{
-                id_fornecedor: idFornecedor,
-                id_faturado: idFaturado,
-                numero_nota_fiscal: dadosExtraidos.numeroNotaFiscal,
-                data_emissao: dataEmissaoFormatada,
-                descricao_produtos: JSON.stringify(dadosExtraidos.descricaoProdutos || []),
-                valor_total: dadosExtraidos.valorTotal
-            }])
-            .select()
-            .single();
+        // Registra a Nota Fiscal na tabela selecionada
+        if (tipo_registro === 'Despesa') {
+            const { data: contaPagar, error: errConta } = await supabase
+                .from('conta_pagar')
+                .insert([{
+                    id_fornecedor: idFornecedor,
+                    id_faturado: idFaturado,
+                    numero_nota_fiscal: numeroNota,
+                    data_emissao: dataEmissaoFormatada,
+                    descricao_produtos: dadosExtraidos.descricaoProdutos,
+                    valor_total: dadosExtraidos.valorTotal
+                }])
+                .select()
+                .single();
 
-        if (errConta) throw errConta;
+            if (errConta) throw errConta;
 
-        // Associa Tipo de Despesa à Conta a Pagar
-        if (idTipoDespesa) {
-            await supabase.from('conta_pagar_tipo_despesa').insert([{
-                id_conta_pagar: contaPagar.id,
-                id_tipo_despesa: idTipoDespesa
-            }]);
+            // Associa na tabela associativa conta_pagar_tipo_despesa
+            if (idTipoDoc) {
+                await supabase.from(tabelaAssDestino).insert([{
+                    id_conta_pagar: contaPagar.id,
+                    id_tipo_despesa: idTipoDoc
+                }]);
+            }
+        } else {
+            const { data: contaReceber, error: errConta } = await supabase
+                .from('conta_receber')
+                .insert([{
+                    id_fornecedor: idFornecedor,
+                    id_cliente: idFaturado,
+                    numero_documento: numeroNota,
+                    data_emissao: dataEmissaoFormatada,
+                    descricao: dadosExtraidos.descricaoProdutos,
+                    valor_total: dadosExtraidos.valorTotal
+                }])
+                .select()
+                .single();
+
+            if (errConta) throw errConta;
+
+            // Associa na tabela associativa conta_receber_tipo_receita
+            if (idTipoDoc) {
+                await supabase.from(tabelaAssDestino).insert([{
+                    id_conta_receber: contaReceber.id,
+                    id_tipo_receita: idTipoDoc
+                }]);
+            }
         }
 
-        return res.json({ success: true, message: 'Nota fiscal salva com sucesso!' });
+        return res.json({ success: true, message: `Nota fiscal salva como ${tipo_registro} com sucesso!` });
 
     } catch (error) {
         console.error('Erro ao salvar nota fiscal:', error);
@@ -232,11 +369,13 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
 // Rota para listar / buscar histórico de contas a pagar
 router.get('/api/notas/historico', async (req, res) => {
     try {
-        const { termo } = req.query;
-        const termoNormalizado = (termo).trim().toLowerCase();
+        const termo = req.query.termo ? String(req.query.termo).trim() : '';
+        const termoLower = termo.toLowerCase();
 
-        // Se termo receber despesas, traz todas as notas de conta a pagar
-        if (termo === 'Despesas' || termo === 'despesas' || termo === 'Despesa' || termo === 'despesa') {
+        // -------------------------------------------------------------------------
+        // 1. FILTRO APENAS DE DESPESAS
+        // -------------------------------------------------------------------------
+        if (['despesas', 'despesa', 'Despesas', 'Despesa'].includes(termoLower)) {
             const { data: notas, error } = await supabase
                 .from('conta_pagar')
                 .select(`
@@ -254,61 +393,108 @@ router.get('/api/notas/historico', async (req, res) => {
                 .order('data_emissao', { ascending: false });
 
             if (error) throw error;
-
             return res.json({ success: true, data: formatarNotas(notas, "Despesa") });
         }
 
-        // Se termo receber receita, traz todas as notas de conta a receber
-        if (termo === 'Receitas' || termo === 'receitas' || termo === 'Receita' || termo === 'receita') {
+        // -------------------------------------------------------------------------
+        // 2. FILTRO APENAS DE RECEITAS
+        // -------------------------------------------------------------------------
+        if (['receitas', 'receita', 'Receitas', 'Receita'].includes(termoLower)) {
             const { data: notas, error } = await supabase
                 .from('conta_receber')
                 .select(`
                     id,
-                    numero_nota_fiscal,
+                    numero_documento,
                     data_emissao,
                     valor_total,
-                    descricao_produtos,
+                    descricao,
                     fornecedor ( id, razao_social, cnpj ),
-                    faturado ( id, nome_completo, cpf ),
-                    conta_pagar_tipo_despesa (
-                        tipo_despesa ( id, categoria_pai, descricao )
+                    cliente ( id, nome, cpf_cnpj ),
+                    conta_receber_tipo_receita (
+                        tipo_receita ( id, categoria_pai, descricao )
                     )
                 `)
                 .order('data_emissao', { ascending: false });
 
             if (error) throw error;
-
             return res.json({ success: true, data: formatarNotas(notas, "Receita") });
         }
 
-        // Busca por termo genérico (Nº da nota, Fornecedor ou Faturado)
-        const [{ data: fornecedores }, { data: faturados }] = await Promise.all([
-            supabase.from('fornecedor').select('id').ilike('razao_social', `%${termoNormalizado}%`),
-            supabase.from('faturado').select('id').ilike('nome_completo', `%${termoNormalizado}%`)
+        // -------------------------------------------------------------------------
+        // 3. BUSCAR TODAS AS NOTAS (Sem filtro de busca)
+        // -------------------------------------------------------------------------
+        if (!termo) {
+            const [{ data: despesas, error: errDesp }, { data: receitas, error: errRec }] = await Promise.all([
+                supabase.from('conta_pagar').select(`
+                    id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
+                    fornecedor ( id, razao_social, cnpj ),
+                    faturado ( id, nome_completo, cpf ),
+                    conta_pagar_tipo_despesa ( tipo_despesa ( id, categoria_pai, descricao ) )
+                `).order('data_emissao', { ascending: false }),
+
+                supabase.from('conta_receber').select(`
+                    id, numero_documento, data_emissao, valor_total, descricao,
+                    fornecedor ( id, razao_social, cnpj ),
+                    cliente ( id, nome, cpf_cnpj ),
+                    conta_receber_tipo_receita ( tipo_receita ( id, categoria_pai, descricao ) )
+                `).order('data_emissao', { ascending: false })
+            ]);
+
+            if (errDesp) throw errDesp;
+            if (errRec) throw errRec;
+
+            const listaDespesas = formatarNotas(despesas, "Despesa");
+            const listaReceitas = formatarNotas(receitas, "Receita");
+
+            // Junta tudo e ordena por data_emissao
+            const todasNotas = [...listaDespesas, ...listaReceitas].sort((a, b) =>
+                new Date(b.dataEmissaoRaw || 0) - new Date(a.dataEmissaoRaw || 0)
+            );
+
+            return res.json({ success: true, data: todasNotas });
+        }
+
+        // -------------------------------------------------------------------------
+        // 4. BUSCA COM TERMO GENÉRICO (Filtra Por Nome, Documento ou Número da Nota)
+        // -------------------------------------------------------------------------
+        const [{ data: fornecedores }, { data: faturados }, { data: clientes }] = await Promise.all([
+            supabase.from('fornecedor').select('id').ilike('razao_social', `%${termo}%`),
+            supabase.from('faturado').select('id').ilike('nome_completo', `%${termo}%`),
+            supabase.from('cliente').select('id').ilike('nome', `%${termo}%`)
         ]);
 
         const idsFornecedores = (fornecedores || []).map(f => f.id);
         const idsFaturados = (faturados || []).map(f => f.id);
+        const idsClientes = (clientes || []).map(c => c.id);
 
-        let condicoes = [`numero_nota_fiscal.ilike.%${termoNormalizado}%`];
-        if (idsFornecedores.length > 0) condicoes.push(`id_fornecedor.in.(${idsFornecedores.join(',')})`);
-        if (idsFaturados.length > 0) condicoes.push(`id_faturado.in.(${idsFaturados.join(',')})`);
+        // Condições para Conta a Pagar
+        let condDespesa = [`numero_nota_fiscal.ilike.%${termo}%`];
+        if (idsFornecedores.length > 0) condDespesa.push(`id_fornecedor.in.(${idsFornecedores.join(',')})`);
+        if (idsFaturados.length > 0) condDespesa.push(`id_faturado.in.(${idsFaturados.join(',')})`);
 
-        // Executa busca nas duas tabelas
+        // Condições para Conta a Receber
+        let condReceita = [`numero_documento.ilike.%${termo}%`];
+        if (idsFornecedores.length > 0) condReceita.push(`id_fornecedor.in.(${idsFornecedores.join(',')})`);
+        if (idsClientes.length > 0) condReceita.push(`id_cliente.in.(${idsClientes.join(',')})`);
+
         const [{ data: despesasFiltro, error: errFiltroDesp }, { data: receitasFiltro, error: errFiltroRec }] = await Promise.all([
             supabase.from('conta_pagar').select(`
                 id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
-                fornecedor ( id, razao_social, cnpj ), faturado ( id, nome_completo, cpf ),
+                fornecedor ( id, razao_social, cnpj ),
+                faturado ( id, nome_completo, cpf ),
                 conta_pagar_tipo_despesa ( tipo_despesa ( id, categoria_pai, descricao ) )
-            `).or(condicoes.join(',')).order('data_emissao', { ascending: false }),
+            `).or(condDespesa.join(',')).order('data_emissao', { ascending: false }),
 
             supabase.from('conta_receber').select(`
-                id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
-                fornecedor ( id, razao_social, cnpj ), faturado ( id, nome_completo, cpf )
-            `).or(condicoes.join(',')).order('data_emissao', { ascending: false })
+                id, numero_documento, data_emissao, valor_total, descricao,
+                id_fornecedor ( id, razao_social, cnpj ),
+                id_cliente ( id, nome, cpf_cnpj ),
+                conta_receber_tipo_receita ( id_tipo_receita ( id, categoria_pai, descricao ) )
+            `).or(condReceita.join(',')).order('data_emissao', { ascending: false })
         ]);
 
         if (errFiltroDesp) throw errFiltroDesp;
+        if (errFiltroRec) throw errFiltroRec;
 
         const resultadoDespesas = formatarNotas(despesasFiltro, "Despesa");
         const resultadoReceitas = formatarNotas(receitasFiltro, "Receita");
@@ -329,15 +515,16 @@ router.get('/api/notas/historico', async (req, res) => {
 function formatarNotas(notas, tipoNF) {
     return (notas || []).map(nota => {
         const despesaObj = nota.conta_pagar_tipo_despesa?.[0]?.tipo_despesa;
+        const receitaObj = nota.conta_receber_tipo_receita?.[0]?.tipo_receita;
         return {
             id: nota.id,
-            numeroNota: nota.numero_nota_fiscal || 'S/N',
+            numeroNota: nota.numero_nota_fiscal  || nota.numero_documento || 'S/N',
             dataEmissaoRaw: nota.data_emissao,
             dataEmissao: nota.data_emissao ? new Date(nota.data_emissao).toLocaleDateString('pt-BR') : '-',
             fornecedor: nota.fornecedor?.razao_social || 'N/A',
             cnpjFornecedor: nota.fornecedor?.cnpj || '',
-            faturado: nota.faturado?.nome_completo || 'N/A',
-            categoria: despesaObj?.categoria_pai || despesaObj?.descricao || 'Não Classificado',
+            faturado: nota.faturado?.nome_completo || nota.cliente?.nome || 'N/A',
+            categoria: despesaObj?.categoria_pai || receitaObj?.categoria_pai || 'Não Classificado',
             valorTotalRaw: nota.valor_total,
             valorTotal: nota.valor_total ? Number(nota.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00',
             tipo: tipoNF

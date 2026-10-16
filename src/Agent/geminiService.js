@@ -8,15 +8,15 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const MODELOS_DISPONIVEIS = [
   'gemini-3.5-flash-lite',
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-  'gemini-3.8-flash',
 ];
 
-export async function processarNotaFiscalPDF(caminhoArquivo) {
+export async function processarNotaFiscalPDF(caminhoArquivo,tipoRegistro, categoriasDisponiveis = []) {
   // Converte o arquivo local em Buffer/Base64 para o Gemini
   const pdfBuffer = fs.readFileSync(caminhoArquivo);
   const pdfBase64 = pdfBuffer.toString('base64');
+  const textoCategorias = categoriasDisponiveis.length > 0
+      ? categoriasDisponiveis.map(cat => `- ${cat.categoria_pai ? cat.categoria_pai + ': ' : ''}${cat.descricao}`).join('\n')
+      : 'Geral / Não Classificado';
 
   const prompt = `
     Você é um extrator de dados de Notas Fiscais.
@@ -39,42 +39,10 @@ export async function processarNotaFiscalPDF(caminhoArquivo) {
     ValorTotal
     Classificação da nota fiscal
     
-    Classifique a DESPESA com base nos itens da nota seguindo estas categorias:
-    - INSUMOS AGRÍCOLAS 
-        Sementes, Fertilizantes, Defensivos Agrícolas, Corretivos
-    - MANUTENÇÃO E OPERAÇÃO
-        Combustíveis e Lubrificantes
-        Peças, Parafusos, Componentes Mecânicos
-        Manutenção de Máquinas e Equipamentos
-        Pneus, Filtros, Correias
-        Ferramentas e Utensílios
-    - RECURSOS HUMANOS
-        Mão de Obra Temporária
-        Salários e Encargos
-    - SERVIÇOS OPERACIONAIS
-        Frete e Transporte
-        Colheita Terceirizada
-        Secagem e Armazenagem
-        Pulverização e Aplicação
-    - INFRAESTRUTURA E UTILIDADES
-        Energia Elétrica
-        Arrendamento de Terras
-        Construções e Reformas
-        Materiais de Construção
-    - ADMINISTRATIVAS
-        Honorários (Contábeis, Advocatícios, Agronômicos)
-        Despesas Bancárias e Financeiras
-    - SEGUROS E PROTEÇÃO
-        Seguro Agrícola
-        Seguro de Ativos (Máquinas/Veículos)
-        Seguro Prestamista
-    - IMPOSTOS E TAXAS
-        ITR, IPTU, IPVA, INCRA-CCIR
-    - INVESTIMENTOS
-        Aquisição de Máquinas e Implementos
-        Aquisição de Veículos
-        Aquisição de Imóveis
-        Infraestrutura Rural
+    Classifique este lançamento do tipo ${tipoRegistro.toUpperCase()} com base nos itens da nota seguindo estas categorias:
+    ${textoCategorias}
+    
+    caso não encontra a classificação adequada dedusaa que faça mais sentido. ou coloque "Geral / Não Classificado"
   `;
 
   // Esquema de resposta estruturada em JSON

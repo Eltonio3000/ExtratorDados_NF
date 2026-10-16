@@ -1,4 +1,5 @@
 import { processarNotaFiscalPDF } from '../Agent/geminiService.js';
+import { supabase } from '../config/supabase.js';
 import fs from 'fs';
 
 export async function extrairDadosPDF(req, res) {
@@ -8,7 +9,32 @@ export async function extrairDadosPDF(req, res) {
       return res.status(400).json({ error: 'Nenhum arquivo PDF foi enviado.' });
     }
 
-    const dadosExtraidos = await processarNotaFiscalPDF(req.file.path);
+    const tipoRegistro = req.body.tipo_registro || 'Despesa'; // 'Despesa' ou 'Receita'
+    const idUsuario = req.body.usuario.id;
+
+    const tabelaCategorias = (tipoRegistro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+
+    // Busca as categorias ativas do usuário logado na tabela correspondente
+    let query = supabase
+        .from(tabelaCategorias)
+        .select('id, descricao, categoria_pai')
+        .eq('ativo', true);
+
+    if (idUsuario) {
+      query = query.eq('criador', idUsuario);
+    }
+
+    const { data: categorias, error: errCat } = await query;
+
+    if (errCat) {
+      console.error('Erro ao buscar categorias do banco:', errCat);
+    }
+
+    const dadosExtraidos = await processarNotaFiscalPDF(
+        req.file.path,
+        tipoRegistro,
+        categorias || []
+    );
 
     // deletar arquivo temporário da pasta uploads após leitura
     if (fs.existsSync(req.file.path)) {

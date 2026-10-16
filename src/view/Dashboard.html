@@ -91,7 +91,7 @@
     <div class="user-info">
         <i class="fa-solid fa-circle-user fa-2x mb-2"></i>
         <div class="fw-bold" id="sidebar-username">USUÁRIO LOGADO</div>
-        <span class="badge bg-primary mt-1">Financeiro</span>
+        <span id="badgeUsuario" class="badge bg-primary mt-1">Financeiro</span>
         <button class="btn btn-sm btn-outline-light w-100 mt-3" onclick="fazerLogout()">
             <i class="fa-solid fa-right-from-bracket me-1"></i> Sair
         </button>
@@ -116,7 +116,7 @@
         <div class="card-title-custom">Buscar Notas Fiscais</div>
         <div class="row g-2">
             <div class="col-md-9">
-                <input type="text" id="input-busca" class="form-control" placeholder="Buscar por número da nota, fornecedor ou faturado...">
+                <input type="text" id="input-busca" class="form-control" placeholder="Buscar por número da nota, fornecedor, faturado ou tipo.">
             </div>
             <div class="col-md-3 d-flex gap-2">
                 <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-1" onclick="buscarNotas()">
@@ -211,7 +211,11 @@
     // Ao carregar a página
     document.addEventListener('DOMContentLoaded', () => {
         modalInstancia = new bootstrap.Modal(document.getElementById('modalEditar'));
-        const usuarioLogado = JSON.parse(localStorage.getItem('usuario_logado'));
+        const usuarioLogado = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const badgeElement = document.getElementById('badgeUsuario');
+        if (badgeElement) {
+            badgeElement.textContent = usuarioLogado.nome_completo.trim() || 'user';
+        }
         if (usuarioLogado && usuarioLogado.nome) {
             document.getElementById('sidebar-username').innerText = usuarioLogado.nome.toUpperCase();
         }
