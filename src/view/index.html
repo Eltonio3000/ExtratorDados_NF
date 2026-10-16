@@ -72,7 +72,7 @@
 
 <body>
 
-<div class="container">
+<div class="container" margin>
 
     <!-- Botão de Usuário no Canto Superior Direito -->
     <div class="top-bar">
@@ -94,7 +94,7 @@
 
     <!-- Upload -->
     <div class="card">
-        <div class="upload-title">
+        <div class="upload-title" style="color: #94a3b8">
             <span>↥</span> Upload do PDF
         </div>
 
@@ -118,13 +118,13 @@
 
     <!-- Dados Extraídos -->
     <div class="card results">
-        <div class="results-title">
+        <div class="results-title" style="color: #94a3b8">
             Dados Extraídos
         </div>
 
         <!-- Cabeçalho JSON -->
         <div class="json-header">
-            <div class="json-title">
+            <div class="json-title" style="color: #94a3b8">
                 &lt;/&gt; Dados em JSON
             </div>
 
@@ -146,8 +146,8 @@
 
     <!-- Card de Consulta no Banco de Dados (Inicia Oculto) -->
     <div id="cardConsulta" class="card" style="display: none; margin-top: 20px;">
-        <h3 style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-            Mostrar resposta da consulta na tela:
+        <h3 style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; color: #94a3b8">
+            Consulta de Dados da Conta:
         </h3>
 
         <div id="resultadoConsulta" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a;">
@@ -191,6 +191,7 @@
                     ${usuario.email}
                 </div>
                 <a href="#" onclick="fazerLogout(event)" style="color: #d32f2f;">🚪 Sair da Conta</a>
+                <a href="/dashboard" style="color: #1e3a8a;">📑 Dashboard</a>
             `;
         } else {
             // Opções para usuário NÃO LOGADO
@@ -341,7 +342,6 @@
             }
 
             alert('Nota Fiscal registrada com sucesso!');
-            window.location.href = '/dashboard';
 
         } catch (err) {
             alert(err.message);

@@ -20,8 +20,11 @@ router.get('/registro', (req, res) => {
     res.sendFile(path.join(viewPath, 'Registro.html'));
 });
 
-router.get('/dashboard', (req, res) => {
+router.get('/extrairdados', (req, res) => {
     res.sendFile(path.join(viewPath, 'index.html'));
+});
+router.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(viewPath, 'Dashboard.html'));
 });
 
 router.post('/api/auth/registro', authController.registrar);
@@ -223,6 +226,167 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
     } catch (error) {
         console.error('Erro ao salvar nota fiscal:', error);
         res.status(500).json({ error: error.message || 'Erro ao registrar nota fiscal.' });
+    }
+});
+
+// Rota para listar / buscar histórico de contas a pagar
+router.get('/api/notas/historico', async (req, res) => {
+    try {
+        const { termo } = req.query;
+        const termoNormalizado = (termo).trim().toLowerCase();
+
+        // Se termo receber despesas, traz todas as notas de conta a pagar
+        if (termo === 'Despesas' || termo === 'despesas' || termo === 'Despesa' || termo === 'despesa') {
+            const { data: notas, error } = await supabase
+                .from('conta_pagar')
+                .select(`
+                    id,
+                    numero_nota_fiscal,
+                    data_emissao,
+                    valor_total,
+                    descricao_produtos,
+                    fornecedor ( id, razao_social, cnpj ),
+                    faturado ( id, nome_completo, cpf ),
+                    conta_pagar_tipo_despesa (
+                        tipo_despesa ( id, categoria_pai, descricao )
+                    )
+                `)
+                .order('data_emissao', { ascending: false });
+
+            if (error) throw error;
+
+            return res.json({ success: true, data: formatarNotas(notas, "Despesa") });
+        }
+
+        // Se termo receber receita, traz todas as notas de conta a receber
+        if (termo === 'Receitas' || termo === 'receitas' || termo === 'Receita' || termo === 'receita') {
+            const { data: notas, error } = await supabase
+                .from('conta_receber')
+                .select(`
+                    id,
+                    numero_nota_fiscal,
+                    data_emissao,
+                    valor_total,
+                    descricao_produtos,
+                    fornecedor ( id, razao_social, cnpj ),
+                    faturado ( id, nome_completo, cpf ),
+                    conta_pagar_tipo_despesa (
+                        tipo_despesa ( id, categoria_pai, descricao )
+                    )
+                `)
+                .order('data_emissao', { ascending: false });
+
+            if (error) throw error;
+
+            return res.json({ success: true, data: formatarNotas(notas, "Receita") });
+        }
+
+        // Busca por termo genérico (Nº da nota, Fornecedor ou Faturado)
+        const [{ data: fornecedores }, { data: faturados }] = await Promise.all([
+            supabase.from('fornecedor').select('id').ilike('razao_social', `%${termoNormalizado}%`),
+            supabase.from('faturado').select('id').ilike('nome_completo', `%${termoNormalizado}%`)
+        ]);
+
+        const idsFornecedores = (fornecedores || []).map(f => f.id);
+        const idsFaturados = (faturados || []).map(f => f.id);
+
+        let condicoes = [`numero_nota_fiscal.ilike.%${termoNormalizado}%`];
+        if (idsFornecedores.length > 0) condicoes.push(`id_fornecedor.in.(${idsFornecedores.join(',')})`);
+        if (idsFaturados.length > 0) condicoes.push(`id_faturado.in.(${idsFaturados.join(',')})`);
+
+        // Executa busca nas duas tabelas
+        const [{ data: despesasFiltro, error: errFiltroDesp }, { data: receitasFiltro, error: errFiltroRec }] = await Promise.all([
+            supabase.from('conta_pagar').select(`
+                id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
+                fornecedor ( id, razao_social, cnpj ), faturado ( id, nome_completo, cpf ),
+                conta_pagar_tipo_despesa ( tipo_despesa ( id, categoria_pai, descricao ) )
+            `).or(condicoes.join(',')).order('data_emissao', { ascending: false }),
+
+            supabase.from('conta_receber').select(`
+                id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
+                fornecedor ( id, razao_social, cnpj ), faturado ( id, nome_completo, cpf )
+            `).or(condicoes.join(',')).order('data_emissao', { ascending: false })
+        ]);
+
+        if (errFiltroDesp) throw errFiltroDesp;
+
+        const resultadoDespesas = formatarNotas(despesasFiltro, "Despesa");
+        const resultadoReceitas = formatarNotas(receitasFiltro, "Receita");
+
+        const resultadoCombinado = [...resultadoDespesas, ...resultadoReceitas].sort((a, b) =>
+            new Date(b.dataEmissaoRaw || 0) - new Date(a.dataEmissaoRaw || 0)
+        );
+
+        return res.json({ success: true, data: resultadoCombinado });
+
+    } catch (error) {
+        console.error('Erro ao buscar histórico de notas:', error);
+        return res.status(500).json({ error: 'Erro ao buscar notas fiscais no banco de dados.' });
+    }
+});
+
+// Função auxiliar para padronizar o retorno para o frontend
+function formatarNotas(notas, tipoNF) {
+    return (notas || []).map(nota => {
+        const despesaObj = nota.conta_pagar_tipo_despesa?.[0]?.tipo_despesa;
+        return {
+            id: nota.id,
+            numeroNota: nota.numero_nota_fiscal || 'S/N',
+            dataEmissaoRaw: nota.data_emissao,
+            dataEmissao: nota.data_emissao ? new Date(nota.data_emissao).toLocaleDateString('pt-BR') : '-',
+            fornecedor: nota.fornecedor?.razao_social || 'N/A',
+            cnpjFornecedor: nota.fornecedor?.cnpj || '',
+            faturado: nota.faturado?.nome_completo || 'N/A',
+            categoria: despesaObj?.categoria_pai || despesaObj?.descricao || 'Não Classificado',
+            valorTotalRaw: nota.valor_total,
+            valorTotal: nota.valor_total ? Number(nota.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00',
+            tipo: tipoNF
+        };
+    });
+}
+
+// PUT - Editar nota fiscal existente
+router.put('/api/notas/editar/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { numero_nota_fiscal, data_emissao, valor_total, tipo_registro } = req.body;
+
+        const { error } = await supabase
+            .from('conta_pagar')
+            .update({
+                numero_nota_fiscal,
+                data_emissao,
+                valor_total,
+                tipo_registro
+            })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        return res.json({ success: true, message: 'Nota fiscal atualizada com sucesso!' });
+    } catch (error) {
+        console.error('Erro ao editar nota:', error);
+        return res.status(500).json({ error: 'Erro ao atualizar nota fiscal.' });
+    }
+});
+
+// DELETE - Excluir nota fiscal
+router.delete('/api/notas/excluir/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Remove primeiro da tabela associativa
+        await supabase.from('conta_pagar_tipo_despesa').delete().eq('id_conta_pagar', id);
+
+        // Remove da tabela conta_pagar
+        const { error } = await supabase.from('conta_pagar').delete().eq('id', id);
+
+        if (error) throw error;
+
+        return res.json({ success: true, message: 'Nota fiscal excluída com sucesso!' });
+    } catch (error) {
+        console.error('Erro ao excluir nota:', error);
+        return res.status(500).json({ error: 'Erro ao excluir nota fiscal.' });
     }
 });
 

@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(Routes);
 
 app.get('/', (req, res) => {
-    res.redirect('/dashboard');
+    res.redirect('/login');
 });
 
 // Tratamento centralizado de erros do Express/Multer
