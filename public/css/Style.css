@@ -7,17 +7,6 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-
-body {
-    display: flex;
-    background: linear-gradient(135deg, #0a192f, #1e3a8a);
-    color: #f8fafc;
-    min-height: 100vh;
-    padding: 40px 20px;
-    justify-content: center;
-    align-items: center;
-}
-
 .container {
     background-color: #0f172a;
     padding: 40px 30px;
@@ -60,12 +49,12 @@ body {
     padding: 22px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
-
+/*
 .upload-title {
     font-size: 15px;
     font-weight: 500;
     margin-bottom: 22px;
-}
+}*/
 
 .upload-title span {
     margin-right: 7px;
@@ -74,9 +63,10 @@ body {
 /* Label */
 .label {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
     margin-bottom: 8px;
+    color: #020202;
 }
 
 /* Input */
@@ -133,7 +123,7 @@ body {
     margin-top: 14px;
     border: none;
     border-radius: 7px;
-    background: #05050f;
+    background: #0d6efd;;
     color: white;
     font-size: 12px;
     font-weight: bold;
@@ -142,7 +132,7 @@ body {
 }
 
 .extract-button:hover {
-    background: #20202d;
+    background: #5196fb;;
 }
 
 .extract-button:disabled {
@@ -166,7 +156,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 20px;
 }
 
 .json-title {
@@ -175,6 +165,9 @@ body {
 }
 
 .copy-button {
+    position: absolute;
+    top: 45px;
+    right: 20px;
     border: 1px solid #ddd;
     background: white;
     border-radius: 6px;
@@ -215,7 +208,6 @@ pre {
 
 h2 { text-align: center; margin-bottom: 24px; color: #38bdf8; }
 .form-group { margin-bottom: 20px; }
-label { display: block; margin-bottom: 8px; font-size: 14px; color: #94a3b8; }
 input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background-color: #1e293b; color: #f8fafc; font-size: 15px; outline: none; transition: border-color 0.3s; }
 input:focus { border-color: #38bdf8; }
 .btn { width: 100%; padding: 12px; background-color: #2563eb; color: #ffffff; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; margin-top: 10px; }
@@ -256,7 +248,7 @@ input:focus { border-color: #38bdf8; }
 /* Efeito ao passar o mouse por cima (Hover) */
 .opcao-card:hover {
     background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    color: #000000;
 }
 
 /* =========================================================================

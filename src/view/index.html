@@ -1,392 +1,85 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extração de Dados de Nota Fiscal</title>
+    <title>Entrar na Sala</title>
 
     <link rel="stylesheet" href="/css/Style.css">
-
     <style>
-        /* Posicionamento do botão de Usuário e Dropdown */
-        .user-nav {
-            position: relative;
-            display: inline-block;
-        }
-
-        .user-button {
-            background-color: #ffffff;
-            border: 1px solid #e1e1e1;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-            transition: background-color 0.2s, border-color 0.2s;
-        }
-
-        .user-button:hover {
-            background-color: #f8f9fa;
-            border-color: #ccc;
-        }
-
-        .dropdown-menu {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 45px;
-            background-color: #ffffff;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #eaeaea;
-            z-index: 1000;
-        }
-
-        .dropdown-menu a {
-            color: #333;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            font-size: 13px;
-            transition: background 0.2s;
-        }
-
-        .dropdown-menu a:hover {
-            background-color: #f1f3f5;
-        }
-
-        /* Classe para alternar exibição do menu */
-        .show {
-            display: block;
+        body {
+        display: flex;
+        background: linear-gradient(135deg, #0a192f, #1e3a8a);
+        color: #f8fafc;
+        min-height: 100vh;
+        padding: 40px 20px;
+        justify-content: center;
+        align-items: center;
         }
     </style>
 </head>
-
 <body>
 
-<div class="container" margin>
-
-    <!-- Botão de Usuário no Canto Superior Direito -->
-    <div class="top-bar">
-        <div class="user-nav">
-            <button class="user-button" onclick="toggleUserMenu()">
-                👤 <span id="userNameDisplay">Minha Conta</span> ▾
-            </button>
-            <div id="userDropdown" class="dropdown-menu">
-                <!-- O conteúdo aqui é preenchido dinamicamente pelo JavaScript -->
-            </div>
+<div class="container">
+    <h2>Entrar na conta</h2>
+    <form id="formLogin" action="/api/auth/login" method="POST">
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="text" id="email" name="email" placeholder="seuemail@teste.com" required>
         </div>
+
+        <div class="form-group">
+            <label for="senha">Senha *</label>
+            <input type="text" id="senha" name="senha" placeholder="SuaSenha123" required>
+        </div>
+
+        <button type="submit" class="btn">Entrar</button>
+    </form>
+
+    <div class="footer-link">
+        <p>Não tem conta? <a href="/registro">Clique aqui</a></p>
     </div>
-
-    <div class="mb-4">
-        <label class="form-label text-light fw-semibold mb-2">Tipo de Nota Fiscal:</label>
-        <div class="toggle-tipo-container">
-            <!-- Receita (Lado Esquerdo) -->
-            <input type="radio" name="tipoRegistro" id="tipoReceita" value="Receita" class="btn-check-custom">
-            <label for="tipoReceita" class="opcao-card opcao-receita">
-                <i class="fa-solid fa-arrow-down"></i>
-                <span>Receita</span>
-            </label>
-
-            <!-- Despesa (Lado Direito - Selecionado por Padrão) -->
-            <input type="radio" name="tipoRegistro" id="tipoDespesa" value="Despesa" class="btn-check-custom" checked>
-            <label for="tipoDespesa" class="opcao-card opcao-despesa">
-                <i class="fa-solid fa-arrow-up"></i>
-                <span>Despesa</span>
-            </label>
-        </div>
-    </div>
-
-    <!-- Cabeçalho -->
-    <div class="header">
-        <h1>Extração de Dados de Nota Fiscal</h1>
-        <p>Carregue um PDF de nota fiscal e extraia os dados automaticamente usando IA</p>
-    </div>
-
-    <!-- Upload -->
-    <div class="card">
-        <div class="upload-title" style="color: #94a3b8">
-            <span>↥</span> Upload do PDF
-        </div>
-
-        <label class="label" for="pdfInput">
-            Selecione o arquivo PDF da nota fiscal
-        </label>
-
-        <input class="file-input" type="file" id="pdfInput" accept=".pdf,application/pdf" onchange="mostrarPreviewArquivo()">
-
-        <!-- Preview do arquivo selecionado -->
-        <div id="filePreview" class="file-preview" style="display: none;">
-            📄 <span id="fileName" class="file-name"></span>
-            <span id="fileSize" class="file-size"></span>
-        </div>
-
-        <!-- Botão -->
-        <button id="btnExtrair" class="extract-button" onclick="enviarPDF()">
-            ◉ &nbsp; EXTRAIR DADOS
-        </button>
-    </div>
-
-    <!-- Dados Extraídos -->
-    <div class="card results">
-        <div class="results-title" style="color: #94a3b8">
-            Dados Extraídos
-        </div>
-
-        <!-- Cabeçalho JSON -->
-        <div class="json-header">
-            <div class="json-title" style="color: #94a3b8">
-                &lt;/&gt; Dados em JSON
-            </div>
-
-            <button class="copy-button" onclick="copiarJSON()">
-                ⧉ &nbsp; Copiar JSON
-            </button>
-        </div>
-
-        <!-- JSON Container -->
-        <div class="json-container">
-            <pre id="jsonOutput">// Os dados extraídos do PDF aparecerão aqui...</pre>
-        </div>
-
-        <p class="description">
-            Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado
-            para integração com outros sistemas.
-        </p>
-    </div>
-
-    <!-- Card de Consulta no Banco de Dados (Inicia Oculto) -->
-    <div id="cardConsulta" class="card" style="display: none; margin-top: 20px;">
-        <h3 style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; color: #94a3b8">
-            Consulta de Dados da Conta:
-        </h3>
-
-        <div id="resultadoConsulta" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a;">
-            <!-- Preenchido via JavaScript no formato da imagem -->
-        </div>
-
-        <!-- Botão para Salvar e Ir para o Dashboard -->
-        <button id="btnSalvarNota" class="extract-button" onclick="salvarERegistrarNota()" style="margin-top: 20px; background-color: #2e7d32;">
-            💾 SALVAR REGISTRO E IR PARA O DASHBOARD
-        </button>
-    </div>
-
 </div>
 
-<script src="/js/Main.js"></script>
-
 <script>
-    // Executa assim que a página carregar
-    document.addEventListener("DOMContentLoaded", () => {
-        carregarSessaoUsuario();
-    });
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-    // Função que verifica se há usuário logado no localStorage
-    function carregarSessaoUsuario() {
-        const usuarioSalvo = localStorage.getItem('usuarioLogado');
-        const nameDisplay = document.getElementById('userNameDisplay');
-        const dropdown = document.getElementById('userDropdown');
-
-        if (usuarioSalvo) {
-            const usuario = JSON.parse(usuarioSalvo);
-
-            // Pega apenas o primeiro nome para exibição no botão
-            const primeiroNome = usuario.nome_completo ? usuario.nome_completo.split(' ')[0] : 'Usuário';
-
-            nameDisplay.innerText = `Olá, ${primeiroNome}`;
-
-            // Opções para usuário LOGADO
-            dropdown.innerHTML = `
-                <div style="padding: 10px 16px; font-size: 11px; color: #777; border-bottom: 1px solid #eee;">
-                    <strong>${usuario.nome_completo}</strong><br>
-                    ${usuario.email}
-                </div>
-                <a href="#" onclick="fazerLogout(event)" style="color: #d32f2f;">🚪 Sair da Conta</a>
-                <a href="/dashboard" style="color: #1e3a8a;">📑 Dashboard</a>
-            `;
-        } else {
-            // Opções para usuário NÃO LOGADO
-            nameDisplay.innerText = "Minha Conta";
-            dropdown.innerHTML = `
-                <a href="/login">🔑 Entrar (Login)</a>
-                <a href="/registro">📝 Criar Conta</a>
-            `;
-        }
-    }
-
-    // Função de Logout
-    function fazerLogout(event) {
-        event.preventDefault();
-
-        // Remove os dados da sessão salva
-        localStorage.removeItem('usuarioLogado');
-
-        alert('Sessão encerrada com sucesso!');
-        // Recarrega a página para atualizar o menu
-        window.location.reload();
-    }
-
-    // Função para abrir/fechar o dropdown
-    function toggleUserMenu() {
-        document.getElementById("userDropdown").classList.toggle("show");
-    }
-
-    // Fecha o menu ao clicar fora dele
-    window.onclick = function(event) {
-        if (!event.target.matches('.user-button') && !event.target.matches('.user-button *')) {
-            const dropdowns = document.getElementsByClassName("dropdown-menu");
-            for (let i = 0; i < dropdowns.length; i++) {
-                const openDropdown = dropdowns[i];
-                if (openDropdown.classList.contains('show')) {
-                    openDropdown.classList.remove('show');
-                }
-            }
-        }
-    }
-
-    let dadosUltimaExtracao = null;
-    let dadosVerificacao = null;
-
-    // Função chamada após a IA extrair o JSON
-    async function processarVerificacaoBanco(dadosJSON) {
-        dadosUltimaExtracao = dadosJSON;
-        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value
-
-        // Extrai os campos com fallback
-        const payloadConsulta = {
-            tipo_registro: tipoRegistroSelecionado,
-            fornecedor: {
-                razao_social: dadosJSON.fornecedor?.razaoSocial || '',
-                cnpj: dadosJSON.fornecedor?.cnpj || ''
-            },
-            faturado: {
-                nome_completo: dadosJSON.faturado?.nomeCompleto || '',
-                cpf: dadosJSON.faturado?.cpf || ''
-            },
-            classificacao: dadosJSON.classificacao || ''
-        };
+        const email = document.getElementById('email').value.trim();
+        const senha = document.getElementById('senha').value;
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
 
         try {
-            const response = await fetch('/api/extrair/consultar-existencia', {
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "Entrando...";
+
+            const response = await fetch('/api/auth/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payloadConsulta)
-            });
-
-            dadosVerificacao = await response.json();
-            renderizarResultadoConsulta(dadosVerificacao);
-
-        } catch (err) {
-            console.error('Erro ao consultar banco:', err);
-        }
-    }
-
-    // Renderiza o HTML exatamente conforme o modelo da imagem
-    function renderizarResultadoConsulta(res) {
-        const container = document.getElementById('resultadoConsulta');
-        const cardConsulta = document.getElementById('cardConsulta');
-
-        if (!container || !cardConsulta) return;
-
-        // Obtém o rótulo ("DESPESA" ou "RECEITA") do toggle selecionado
-        const tipoSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value || 'Despesa';
-        const tituloTipo = tipoSelecionado.toUpperCase();
-
-        const htmlForn = `
-        <div style="margin-bottom: 15px;">
-            <strong>FORNECEDOR:</strong><br>
-            ${res.fornecedor?.dados?.razao_social || 'NÃO INFORMADO'}<br>
-            CNPJ: ${res.fornecedor?.dados?.cnpj || 'N/A'}<br>
-            <span style="font-weight: bold; color: ${res.fornecedor?.existe ? '#0070f3' : '#d32f2f'};">
-                ${res.fornecedor?.existe ? `EXISTE – ID: ${res.fornecedor.id}` : 'NÃO EXISTE'}
-            </span>
-        </div>
-    `;
-
-            const htmlFat = `
-        <div style="margin-bottom: 15px;">
-            <strong>FATURADO</strong><br>
-            ${res.faturado?.dados?.nome_completo || 'NÃO INFORMADO'}<br>
-            CPF: ${res.faturado?.dados?.cpf || 'N/A'}<br>
-            <span style="font-weight: bold; color: ${res.faturado?.existe ? '#0070f3' : '#d32f2f'};">
-                ${res.faturado?.existe ? `EXISTE – ID: ${res.faturado.id}` : 'NÃO EXISTE'}
-            </span>
-        </div>
-    `;
-
-            // Garante compatibilidade caso o backend envie res.tipo ou res.despesa
-            const objetoTipo = res.tipo || res.despesa || {};
-            const nomeClassificacao = typeof objetoTipo.classificacao === 'string'
-                ? objetoTipo.classificacao
-                : (objetoTipo.classificacao?.classificacao || 'NÃO INFORMADA');
-
-            const htmlDesp = `
-        <div style="margin-bottom: 15px;">
-            <strong>${tituloTipo}</strong><br>
-            ${nomeClassificacao || 'NÃO INFORMADA'}<br>
-            <span style="font-weight: bold; color: ${objetoTipo.existe ? '#0070f3' : '#d32f2f'};">
-                ${objetoTipo.existe ? `EXISTE – ID: ${objetoTipo.id}` : 'NÃO EXISTE'}
-            </span>
-        </div>
-    `;
-
-        container.innerHTML = htmlForn + htmlFat + htmlDesp;
-        cardConsulta.style.display = 'block';
-    }
-
-    // Salva tudo no banco e redireciona
-    async function salvarERegistrarNota() {
-        const usuarioSalvo = localStorage.getItem('usuarioLogado');
-        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value;
-        if (!usuarioSalvo) {
-            alert('Por favor, faça login para salvar esta nota fiscal.');
-            window.location.href = '/login';
-            return;
-        }
-
-        const usuario = JSON.parse(usuarioSalvo);
-        const btn = document.getElementById('btnSalvarNota');
-
-        try {
-            btn.disabled = true;
-            btn.innerText = 'Salvando no banco de dados...';
-
-            const response = await fetch('/api/extrair/salvar-nota', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id_usuario: usuario.id,
-                    tipo_registro: tipoRegistroSelecionado,
-                    dadosExtraidos: dadosUltimaExtracao,
-                    verificacao: dadosVerificacao
-                })
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, senha })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Erro ao salvar registro.');
+                throw new Error(data.error || 'Falha ao autenticar.');
             }
 
-            alert('Nota Fiscal registrada com sucesso!');
+            // Salva as informações básicas do usuário no localStorage para manter a sessão
+            localStorage.setItem('usuarioLogado', JSON.stringify(data.user));
+
+            alert('Login efetuado com sucesso!');
+            window.location.href = '/historico';
 
         } catch (err) {
             alert(err.message);
         } finally {
-            btn.disabled = false;
-            btn.innerText = '💾 SALVAR REGISTRO E IR PARA O DASHBOARD';
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "ENTRAR";
         }
-    }
+    });
 </script>
-
 </body>
-
 </html>

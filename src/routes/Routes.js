@@ -13,18 +13,19 @@ const viewPath = path.join(__dirname, '../view');
 
 
 router.get('/login', (req, res) => {
-    res.sendFile(path.join(viewPath, 'Login.html'));
+    res.sendFile(path.join(viewPath, 'index.html'));
 });
-
 router.get('/registro', (req, res) => {
     res.sendFile(path.join(viewPath, 'Registro.html'));
 });
-
 router.get('/extrairdados', (req, res) => {
-    res.sendFile(path.join(viewPath, 'index.html'));
+    res.sendFile(path.join(viewPath, 'extrairdados.html'));
 });
-router.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(viewPath, 'Dashboard.html'));
+router.get('/historico', (req, res) => {
+    res.sendFile(path.join(viewPath, 'Historico.html'));
+});
+router.get('/categorias', (req, res) => {
+    res.sendFile(path.join(viewPath, 'Categorias.html'));
 });
 
 router.post('/api/auth/registro', authController.registrar);
@@ -574,6 +575,85 @@ router.delete('/api/notas/excluir/:id', async (req, res) => {
     } catch (error) {
         console.error('Erro ao excluir nota:', error);
         return res.status(500).json({ error: 'Erro ao excluir nota fiscal.' });
+    }
+});
+
+// A. Buscar Categorias vinculadas ao usuário ou globais
+router.get('/api/categorias', async (req, res) => {
+    try {
+        const tipo = req.query.tipo || 'Despesa';
+        const tabelaTarget = (tipo === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+        const idUsuario = req.session?.usuario?.id || 1; // Pega o usuário logado
+
+        const { data, error } = await supabase
+            .from(tabelaTarget)
+            .select('id, categoria_pai, descricao, ativo, criador')
+            .or(`criador.eq.${idUsuario},criador.is.null`)
+            .order('categoria_pai', { ascending: true });
+
+        if (error) throw error;
+
+        return res.json({ success: true, data });
+    } catch (err) {
+        console.error('Erro ao buscar categorias:', err);
+        return res.status(500).json({ error: 'Erro interno ao consultar categorias.' });
+    }
+});
+
+// B. Salvar (Criar ou Editar) Categoria
+router.post('/api/categorias/salvar', async (req, res) => {
+    try {
+        const { id, tipo_registro, categoria_pai, descricao } = req.body;
+        const tabelaTarget = (tipo_registro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+        const idUsuario = req.session?.usuario?.id || 1;
+
+        if (id) {
+            // Edição
+            const { error } = await supabase
+                .from(tabelaTarget)
+                .update({ categoria_pai, descricao })
+                .eq('id', id);
+
+            if (error) throw error;
+        } else {
+            // Criação
+            const { error } = await supabase
+                .from(tabelaTarget)
+                .insert([{
+                    categoria_pai,
+                    descricao,
+                    ativo: true,
+                    criador: idUsuario
+                }]);
+
+            if (error) throw error;
+        }
+
+        return res.json({ success: true, message: 'Categoria salva com sucesso!' });
+    } catch (err) {
+        console.error('Erro ao salvar categoria:', err);
+        return res.status(500).json({ error: 'Erro ao salvar categoria.' });
+    }
+});
+
+// C. Deletar Categoria
+router.delete('/api/categorias/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tipo = req.query.tipo || 'Despesa';
+        const tabelaTarget = (tipo === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+
+        const { error } = await supabase
+            .from(tabelaTarget)
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        return res.json({ success: true, message: 'Categoria excluída com sucesso!' });
+    } catch (err) {
+        console.error('Erro ao excluir categoria:', err);
+        return res.status(500).json({ error: 'Não foi possível excluir a categoria. Verifique se existem contas vinculadas a ela.' });
     }
 });
 

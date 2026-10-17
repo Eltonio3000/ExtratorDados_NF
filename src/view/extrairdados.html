@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extração de Dados de Nota Fiscal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/Style.css">
+
+    <style>
+
+        body {
+            background: #f8fafc;
+        }
+
+        .sidebar {
+            width: 250px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a192f, #1e3a8a);
+            color: #ffffff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            padding-top: 20px;
+        }
+
+        .sidebar .brand {
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid #3d4452;
+            text-align: center;
+        }
+
+        .sidebar .user-info {
+            padding: 15px 20px;
+            text-align: center;
+            border-bottom: 1px solid #3d4452;
+        }
+
+        .sidebar .nav-link {
+            color: #b8c1ec;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: #3d4452;
+            color: #ffffff;
+            border-left: 4px solid #0d6efd;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 30px;
+        }
+
+        .card-custom {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+            margin-bottom: 25px;
+            padding: 20px;
+        }
+
+        .card-title-custom {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #0d6efd;
+            margin-bottom: 15px;
+        }
+
+        .table-custom thead {
+            background-color: #f8f9fa;
+            color: #0d6efd;
+        }
+
+        .table-custom th {
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .dropdown-menu a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .dropdown-menu a:hover {
+            background-color: #f1f3f5;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- Sidebar Lateral -->
+<div class="sidebar">
+    <div class="brand">Projeto Financeiro</div>
+
+    <div class="user-info">
+        <i class="fa-solid fa-circle-user fa-2x mb-2"></i>
+        <div class="fw-bold" id="sidebar-username">USUÁRIO LOGADO</div>
+        <span id="badgeUsuario" class="badge bg-primary mt-1">Financeiro</span>
+        <button class="btn btn-sm btn-outline-light w-100 mt-3" onclick="fazerLogout()">
+            <i class="fa-solid fa-right-from-bracket me-1"></i> Sair
+        </button>
+    </div>
+
+    <div class="mt-3">
+        <a href="/extrairdados" class="nav-link active">
+            <i class="fa-solid fa-file-invoice"></i> Extrair Nota
+        </a>
+        <a href="/historico" class="nav-link">
+            <i class="fa-solid fa-clock-rotate-left"></i> Histórico de NFs
+        </a>
+        <a href="/categorias" class="nav-link">
+            <i class="fa-solid fa-briefcase"></i> Categorias
+        </a>
+        <a href="/configuracao" class="nav-link">
+            <i class="fa-solid fa-sliders"></i> configuração
+        </a>
+    </div>
+</div>
+
+<div class="main-content">
+    <h3 class="fw-bold mb-4">Extração de Dados de Nota Fiscal</h3>
+
+    <div class="mb-4 card-custom">
+        <label class="card-title-custom">Tipo de Documento:</label>
+        <div class="toggle-tipo-container">
+            <!-- Receita -->
+            <input type="radio" name="tipoRegistro" id="tipoReceita" value="Receita" class="btn-check-custom">
+            <label for="tipoReceita" class="opcao-card opcao-receita">
+                <i class="fa-solid fa-arrow-down"></i>
+                <span>Receita</span>
+            </label>
+
+            <!-- Despesa, Selecionado por Padrão -->
+            <input type="radio" name="tipoRegistro" id="tipoDespesa" value="Despesa" class="btn-check-custom" checked>
+            <label for="tipoDespesa" class="opcao-card opcao-despesa">
+                <i class="fa-solid fa-arrow-up"></i>
+                <span>Despesa</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Cabeçalho
+    <div class="header">
+        <h1>Extração de Dados de Nota Fiscal</h1>
+        <p>Carregue um PDF de nota fiscal e extraia os dados automaticamente usando IA</p>
+    </div>-->
+
+    <!-- Upload -->
+    <div class="card card-custom">
+        <div class="card-title-custom">
+            <span>↥</span> Upload do PDF
+        </div>
+
+        <input class="file-input" type="file" id="pdfInput" accept=".pdf,application/pdf" onchange="mostrarPreviewArquivo()">
+
+        <!-- Preview do arquivo selecionado -->
+        <div id="filePreview" class="file-preview" style="display: none;">
+            📄 <span id="fileName" class="file-name"></span>
+            <span id="fileSize" class="file-size"></span>
+        </div>
+
+        <!-- Botão -->
+        <button id="btnExtrair" class="extract-button" onclick="enviarPDF()">
+            EXTRAIR DADOS
+        </button>
+    </div>
+
+    <!-- Dados Extraídos -->
+    <div class="card results card-custom">
+        <div class="results-title card-title-custom">
+            &lt;/&gt; Dados Extraídos em JSON
+        </div>
+
+        <!-- Cabeçalho JSON -->
+        <div class="json-header">
+            <button class="copy-button" onclick="copiarJSON()">
+                ⧉ &nbsp; Copiar JSON
+            </button>
+        </div>
+
+        <!-- JSON Container -->
+        <div class="json-container">
+            <pre id="jsonOutput">// Os dados extraídos do PDF aparecerão aqui...</pre>
+        </div>
+
+        <!--<p class="description">
+            Este JSON contém todos os dados extraídos da nota fiscal e pode ser usado
+            para integração com outros sistemas.
+        </p>-->
+    </div>
+
+    <!-- Card de Consulta no Banco de Dados (Inicia Oculto) -->
+    <div id="cardConsulta" class="card" style="display: none; margin-top: 20px;">
+        <h3 style="margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px;" class="card-title-custom">
+            Consulta de Dados da Conta:
+        </h3>
+
+        <div id="resultadoConsulta" style="font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a;">
+            <!-- Preenchido via JavaScript no formato da imagem -->
+        </div>
+
+        <!-- Botão para Salvar e Ir para o Dashboard -->
+        <button id="btnSalvarNota" class="extract-button" onclick="salvarERegistrarNota()" style="margin-top: 20px; background-color: #2e7d32;">
+            SALVAR REGISTRO
+        </button>
+    </div>
+
+</div>
+
+<script src="/js/Main.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<script>
+    // Executa assim que a página carregar
+    document.addEventListener("DOMContentLoaded", () => {
+        const usuarioLogado = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const badgeElement = document.getElementById('badgeUsuario');
+        if (badgeElement) {
+            badgeElement.textContent = usuarioLogado.nome_completo.trim() || 'user';
+        }
+        if (usuarioLogado && usuarioLogado.nome) {
+            document.getElementById('sidebar-username').innerText = usuarioLogado.nome.toUpperCase();
+        }
+    });
+
+    // Função de Logout
+    function fazerLogout(event) {
+        event.preventDefault();
+
+        // Remove os dados da sessão salva
+        localStorage.removeItem('usuarioLogado');
+
+        alert('Sessão encerrada com sucesso!');
+        // Recarrega a página para atualizar o menu
+        window.location.reload();
+    }
+
+    let dadosUltimaExtracao = null;
+    let dadosVerificacao = null;
+
+    // Função chamada após a IA extrair o JSON
+    async function processarVerificacaoBanco(dadosJSON) {
+        dadosUltimaExtracao = dadosJSON;
+        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value
+
+        // Extrai os campos com fallback
+        const payloadConsulta = {
+            tipo_registro: tipoRegistroSelecionado,
+            fornecedor: {
+                razao_social: dadosJSON.fornecedor?.razaoSocial || '',
+                cnpj: dadosJSON.fornecedor?.cnpj || ''
+            },
+            faturado: {
+                nome_completo: dadosJSON.faturado?.nomeCompleto || '',
+                cpf: dadosJSON.faturado?.cpf || ''
+            },
+            classificacao: dadosJSON.classificacao || ''
+        };
+
+        try {
+            const response = await fetch('/api/extrair/consultar-existencia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadConsulta)
+            });
+
+            dadosVerificacao = await response.json();
+            renderizarResultadoConsulta(dadosVerificacao);
+
+        } catch (err) {
+            console.error('Erro ao consultar banco:', err);
+        }
+    }
+
+    // Renderiza o HTML
+    function renderizarResultadoConsulta(res) {
+        const container = document.getElementById('resultadoConsulta');
+        const cardConsulta = document.getElementById('cardConsulta');
+
+        if (!container || !cardConsulta) return;
+
+        // Obtém o rótulo ("DESPESA" ou "RECEITA") do toggle selecionado
+        const tipoSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value || 'Despesa';
+        const tituloTipo = tipoSelecionado.toUpperCase();
+
+        const htmlForn = `
+        <div style="margin-bottom: 15px;">
+            <strong>FORNECEDOR:</strong><br>
+            ${res.fornecedor?.dados?.razao_social || 'NÃO INFORMADO'}<br>
+            CNPJ: ${res.fornecedor?.dados?.cnpj || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.fornecedor?.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.fornecedor?.existe ? `EXISTE – ID: ${res.fornecedor.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+            const htmlFat = `
+        <div style="margin-bottom: 15px;">
+            <strong>FATURADO</strong><br>
+            ${res.faturado?.dados?.nome_completo || 'NÃO INFORMADO'}<br>
+            CPF: ${res.faturado?.dados?.cpf || 'N/A'}<br>
+            <span style="font-weight: bold; color: ${res.faturado?.existe ? '#0070f3' : '#d32f2f'};">
+                ${res.faturado?.existe ? `EXISTE – ID: ${res.faturado.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+            // Garante compatibilidade caso o backend envie res.tipo ou res.despesa
+            const objetoTipo = res.tipo || res.despesa || {};
+            const nomeClassificacao = typeof objetoTipo.classificacao === 'string'
+                ? objetoTipo.classificacao
+                : (objetoTipo.classificacao?.classificacao || 'NÃO INFORMADA');
+
+            const htmlDesp = `
+        <div style="margin-bottom: 15px;">
+            <strong>${tituloTipo}</strong><br>
+            ${nomeClassificacao || 'NÃO INFORMADA'}<br>
+            <span style="font-weight: bold; color: ${objetoTipo.existe ? '#0070f3' : '#d32f2f'};">
+                ${objetoTipo.existe ? `EXISTE – ID: ${objetoTipo.id}` : 'NÃO EXISTE'}
+            </span>
+        </div>
+    `;
+
+        container.innerHTML = htmlForn + htmlFat + htmlDesp;
+        cardConsulta.style.display = 'block';
+    }
+
+    // Salva tudo no banco
+    async function salvarERegistrarNota() {
+        const usuarioSalvo = localStorage.getItem('usuarioLogado');
+        const tipoRegistroSelecionado = document.querySelector('input[name="tipoRegistro"]:checked')?.value;
+        if (!usuarioSalvo) {
+            alert('Por favor, faça login para salvar esta nota fiscal.');
+            window.location.href = '/login';
+            return;
+        }
+
+        const usuario = JSON.parse(usuarioSalvo);
+        const btn = document.getElementById('btnSalvarNota');
+
+        try {
+            btn.disabled = true;
+            btn.innerText = 'Salvando no banco de dados...';
+
+            const response = await fetch('/api/extrair/salvar-nota', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id_usuario: usuario.id,
+                    tipo_registro: tipoRegistroSelecionado,
+                    dadosExtraidos: dadosUltimaExtracao,
+                    verificacao: dadosVerificacao
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro ao salvar registro.');
+            }
+
+            alert('Nota Fiscal registrada com sucesso!');
+
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'SALVAR REGISTRO';
+        }
+    }
+</script>
+
+</body>
+
+</html>
