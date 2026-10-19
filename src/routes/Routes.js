@@ -519,17 +519,49 @@ router.get('/api/notas/historico', async (req, res) => {
 // Função auxiliar para padronizar o retorno para o frontend
 function formatarNotas(notas, tipoNF) {
     return (notas || []).map(nota => {
-        const despesaObj = nota.conta_pagar_tipo_despesa?.[0]?.tipo_despesa;
-        const receitaObj = nota.conta_receber_tipo_receita?.[0]?.tipo_receita;
+        let classificacoesIds = [];
+        let nomesCategorias = [];
+
+        if (tipoNF === 'Despesa') {
+            const relacao = nota.conta_pagar_tipo_despesa || [];
+            classificacoesIds = relacao
+                .map(r => r.tipo_despesa?.id)
+                .filter(Boolean);
+
+            nomesCategorias = relacao
+                .map(r => {
+                    const t = r.tipo_despesa;
+                    return t ? t.categoria_pai : null;
+                })
+                .filter(Boolean);
+        } else {
+            const relacao = nota.conta_receber_tipo_receita || [];
+            classificacoesIds = relacao
+                .map(r => r.tipo_receita?.id)
+                .filter(Boolean);
+
+            nomesCategorias = relacao
+                .map(r => {
+                    const t = r.tipo_receita;
+                    return t ? t.categoria_pai : null;
+                })
+                .filter(Boolean);
+        }
+
         return {
             id: nota.id,
-            numeroNota: nota.numero_nota_fiscal  || nota.numero_documento || 'S/N',
+            numeroNota: nota.numero_nota_fiscal || nota.numero_documento || 'S/N',
             dataEmissaoRaw: nota.data_emissao,
             dataEmissao: nota.data_emissao ? new Date(nota.data_emissao).toLocaleDateString('pt-BR') : '-',
             fornecedor: nota.fornecedor?.razao_social || 'N/A',
             cnpjFornecedor: nota.fornecedor?.cnpj || '',
             faturado: nota.faturado?.nome_completo || nota.cliente?.nome || 'N/A',
-            categoria: despesaObj?.categoria_pai || receitaObj?.categoria_pai || 'Não Classificado',
+
+            // Retorna o array de IDs para preencher o modal de edição
+            classificacoesIds: classificacoesIds,
+            // Lista formatada para a exibição na tabela
+            categorias: nomesCategorias.length > 0 ? nomesCategorias : ['Não Classificado'],
+
             valorTotalRaw: nota.valor_total,
             valorTotal: nota.valor_total ? Number(nota.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00',
             tipo: tipoNF
@@ -541,24 +573,57 @@ function formatarNotas(notas, tipoNF) {
 router.put('/api/notas/editar/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { numero_nota_fiscal, data_emissao, valor_total, tipo_registro } = req.body;
+        const { tipo_registro, classificacoes } = req.body;
 
-        const { error } = await supabase
-            .from('conta_pagar')
-            .update({
-                numero_nota_fiscal,
-                data_emissao,
-                valor_total,
-                tipo_registro
-            })
-            .eq('id', id);
+        if (Array.isArray(classificacoes) && classificacoes.length > 4) {
+            return res.status(400).json({ error: 'Uma nota fiscal não pode ter mais de 4 classificações associadas.' });
+        }
 
-        if (error) throw error;
+        // Normaliza o tipo para minúsculas
+        const tipoNorm = (tipo_registro || '').toLowerCase();
 
-        return res.json({ success: true, message: 'Nota fiscal atualizada com sucesso!' });
+        // Define as tabelas e colunas de acordo com o tipo do registro
+        const isReceita = tipoNorm === 'receita';
+        const tableTarget = isReceita ? 'conta_receber_tipo_receita' : 'conta_pagar_tipo_despesa';
+        const fkNota = isReceita ? 'id_conta_receber' : 'id_tipo_receita'; // FK referenciando a nota
+        const fkClassificacao = isReceita ? 'id_tipo_receita' : 'id_tipo_despesa';
+        const fkNotaColuna = isReceita ? 'id_conta_receber' : 'id_conta_pagar';
+
+        // 1. Remove os vínculos de classificações anteriores para esta nota
+        const { error: deleteError } = await supabase
+            .from(tableTarget)
+            .delete()
+            .eq(fkNotaColuna, id);
+
+        if (deleteError) throw deleteError;
+
+        // 2. Se houver classificações selecionadas, insere as novas associações
+        if (Array.isArray(classificacoes) && classificacoes.length > 0) {
+            const novosVinculos = classificacoes.map(idClass => ({
+                [fkNotaColuna]: id,
+                [fkClassificacao]: idClass
+            }));
+
+            const { error: insertError } = await supabase
+                .from(tableTarget)
+                .insert(novosVinculos);
+
+            if (insertError) throw insertError;
+        }
+
+        return res.json({ success: true, message: 'Classificações da nota fiscal atualizadas com sucesso!' });
+
     } catch (error) {
         console.error('Erro ao editar nota:', error);
-        return res.status(500).json({ error: 'Erro ao atualizar nota fiscal.' });
+
+        // Tratamento do erro de chave duplicada (Código PostgreSQL: 23505)
+        if (error.code === '23505') {
+            return res.status(400).json({
+                error: 'Você selecionou classificações duplicadas para esta nota fiscal. Remova as repetidas e tente novamente.'
+            });
+        }
+
+        return res.status(500).json({ error: 'Erro interno ao atualizar nota fiscal.' });
     }
 });
 
@@ -592,8 +657,8 @@ router.get('/api/gerencia/buscar', async (req, res) => {
 
         if (entidade === 'faturado') {
             // Busca simultaneamente em 'faturado' e em 'cliente'
-            let queryFat = supabase.from('faturado').select('id, nome_completo, cpf');
-            let queryCli = supabase.from('cliente').select('id, nome, cpf_cnpj');
+            let queryFat = supabase.from('faturado').select('id, nome_completo, cpf, ativo').eq('ativo', true);
+            let queryCli = supabase.from('cliente').select('id, nome, cpf_cnpj, ativo').eq('ativo', true);
 
             if (busca) {
                 queryFat = queryFat.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%`);
@@ -626,15 +691,15 @@ router.get('/api/gerencia/buscar', async (req, res) => {
             data = [...listaFat, ...listaCli];
 
         } else if (entidade === 'fornecedor') {
-            let query = supabase.from('fornecedor').select('id, razao_social, cnpj');
+            let query = supabase.from('fornecedor').select('id, razao_social, cnpj, ativo').eq('ativo', true);;
             if (busca) query = query.or(`razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%`);
             ({ data, error } = await query.order('id', { ascending: false }));
 
         } else if (entidade === 'classificacao') {
             // Busca tanto em tipo_despesa quanto em tipo_receita
             const [{ data: desp }, { data: rec }] = await Promise.all([
-                supabase.from('tipo_despesa').select('id, categoria_pai, descricao'),
-                supabase.from('tipo_receita').select('id, categoria_pai, descricao')
+                supabase.from('tipo_despesa').select('id, categoria_pai, descricao, ativo').eq('ativo', true),
+                supabase.from('tipo_receita').select('id, categoria_pai, descricao, ativo').eq('ativo', true)
             ]);
 
             const listaDesp = (desp || []).map(d => ({ ...d, tipo: 'Despesa' }));
@@ -743,13 +808,120 @@ router.delete('/api/gerencia/deletar', async (req, res) => {
                     entidade === 'classificacao' && origemLower === 'receita' ? 'tipo_receita' :
                         'tipo_despesa';
 
-        const { error } = await supabase.from(tabela).delete().eq('id', id);
+        const { error } = await supabase.from(tabela).update({ativo: false}).eq('id', id);
         if (error) throw error;
 
         return res.json({ success: true, message: 'Registro excluído!' });
     } catch (err) {
         console.error('Erro ao deletar:', err);
         return res.status(500).json({ error: 'O registro possui vínculos e não pode ser excluído.' });
+    }
+});
+
+// Rota para buscar apenas registros INATIVOS
+router.get('/api/gerencia/inativos', async (req, res) => {
+    try {
+        const { entidade, termo } = req.query;
+        const busca = (termo || '').trim();
+
+        let data = [];
+        let error = null;
+
+        if (entidade === 'faturado') {
+            // Busca simultaneamente em 'faturado' e em 'cliente' onde ativo é false
+            let queryFat = supabase
+                .from('faturado')
+                .select('id, nome_completo, cpf, ativo')
+                .eq('ativo', false);
+
+            let queryCli = supabase
+                .from('cliente')
+                .select('id, nome, cpf_cnpj, ativo')
+                .eq('ativo', false);
+
+            if (busca) {
+                queryFat = queryFat.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%`);
+                queryCli = queryCli.or(`nome.ilike.%${busca}%,cpf_cnpj.ilike.%${busca}%`);
+            }
+
+            const [{ data: fatData, error: fatErr }, { data: cliData, error: cliErr }] = await Promise.all([
+                queryFat.order('id', { ascending: false }),
+                queryCli.order('id', { ascending: false })
+            ]);
+
+            if (fatErr) throw fatErr;
+            if (cliErr) throw cliErr;
+
+            // Mapeia e padroniza as duas origens em uma única lista
+            const listaFat = (fatData || []).map(f => ({
+                id: f.id,
+                nome: f.nome_completo,
+                doc: f.cpf,
+                origem: 'Faturado',
+                ativo: f.ativo
+            }));
+
+            const listaCli = (cliData || []).map(c => ({
+                id: c.id,
+                nome: c.nome,
+                doc: c.cpf_cnpj,
+                origem: 'Cliente',
+                ativo: c.ativo
+            }));
+
+            data = [...listaFat, ...listaCli];
+
+        } else if (entidade === 'fornecedor') {
+            let query = supabase
+                .from('fornecedor')
+                .select('id, razao_social, cnpj, ativo')
+                .eq('ativo', false);
+
+            if (busca) {
+                query = query.or(`razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%`);
+            }
+
+            ({ data, error } = await query.order('id', { ascending: false }));
+
+        } else if (entidade === 'classificacao') {
+            // Busca apenas inativas em tipo_despesa e tipo_receita
+            const [{ data: desp }, { data: rec }] = await Promise.all([
+                supabase
+                    .from('tipo_despesa')
+                    .select('id, categoria_pai, descricao, ativo')
+                    .eq('ativo', false),
+                supabase
+                    .from('tipo_receita')
+                    .select('id, categoria_pai, descricao, ativo')
+                    .eq('ativo', false)
+            ]);
+
+            const listaDesp = (desp || []).map(d => ({ ...d, tipo: 'Despesa' }));
+            const listaRec = (rec || []).map(r => ({ ...r, tipo: 'Receita' }));
+
+            data = [...listaDesp, ...listaRec];
+
+            // Remove da lista os itens com categoria_pai "Geral / Não Classificado"
+            data = data.filter(item => {
+                const catPai = (item.categoria_pai || '').trim().toLowerCase();
+                return catPai !== 'geral / não classificado' && catPai !== 'geral/não classificado';
+            });
+
+            if (busca) {
+                const bLower = busca.toLowerCase();
+                data = data.filter(i =>
+                    (i.categoria_pai && i.categoria_pai.toLowerCase().includes(bLower)) ||
+                    (i.descricao && i.descricao.toLowerCase().includes(bLower))
+                );
+            }
+        }
+
+        if (error) throw error;
+        return res.json({ success: true, data });
+
+    } catch (err) {
+        console.error('Erro ao buscar registros inativos:', err);
+        return res.status(500).json({ error: 'Erro interno no servidor ao consultar inativos.' });
     }
 });
 

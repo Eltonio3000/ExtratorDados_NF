@@ -169,7 +169,7 @@
 
 <!-- Modal de Edição de Nota Fiscal -->
 <div class="modal fade" id="modalEditar" tabindex="-1" aria-labelledby="modalEditarLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title fw-bold" id="modalEditarLabel">Editar Nota Fiscal</h5>
@@ -179,27 +179,27 @@
                 <form id="form-editar">
                     <input type="hidden" id="edit-id">
 
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Tipo de Registro</label>
-                        <select id="edit-tipo" class="form-select">
-                            <option value="Despesa">Despesa (Conta a Pagar)</option>
-                            <option value="Receita">Receita (Conta a Receber)</option>
-                        </select>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tipo de Registro</label>
+                            <select id="edit-tipo" class="form-select" onchange="alterarTipoRegistro()">
+                                <option value="Despesa">Despesa (Conta a Pagar)</option>
+                                <option value="Receita">Receita (Conta a Receber)</option>
+                            </select>
+                        </div>
                     </div>
 
+                    <!-- Bloco Dinâmico de Múltiplas Classificações -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Nº Nota Fiscal</label>
-                        <input type="text" id="edit-numero" class="form-control" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Data de Emissão</label>
-                        <input type="date" id="edit-data" class="form-control" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Valor Total (R$)</label>
-                        <input type="number" step="0.01" id="edit-valor" class="form-control" required>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-semibold m-0">Classificações Associadas</label>
+                            <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="adicionarLinhaClassificacao()">
+                                <i class="fa-solid fa-plus me-1"></i> Adicionar Classificação
+                            </button>
+                        </div>
+                        <div id="container-classificacoes" class="d-flex flex-column gap-2">
+                            <!-- Linhas inseridas via JS -->
+                        </div>
                     </div>
                 </form>
             </div>
@@ -216,6 +216,9 @@
 <script>
     let listaNotasMemoria = [];
     let modalInstancia = null;
+    let listaClassificacoesDisponiveis = [];
+    const LIMITE_MAX_CLASSIFICACOES = 4;
+
     // Ao carregar a página
     document.addEventListener('DOMContentLoaded', () => {
         modalInstancia = new bootstrap.Modal(document.getElementById('modalEditar'));
@@ -274,27 +277,32 @@
                     ? '<span class="badge bg-success"><i class="fa-solid fa-arrow-down me-1"></i>Receita</span>'
                     : '<span class="badge bg-danger"><i class="fa-solid fa-arrow-up me-1"></i>Despesa</span>';
 
+                // Renderiza cada classificação como uma badge separada
+                const badgesCategorias = (nota.categorias || []).map(cat =>
+                    `<span class="badge bg-secondary me-1 mb-1">${cat}</span>`
+                ).join('');
+
                 return `
-                        <tr>
-                            <td>${badgeTipo}</td>
-                            <td class="fw-bold">${nota.numeroNota}</td>
-                            <td>${nota.dataEmissao}</td>
-                            <td>${nota.fornecedor}</td>
-                            <td>${nota.faturado}</td>
-                            <td><span class="badge bg-secondary">${nota.categoria}</span></td>
-                            <td class="fw-bold ${nota.tipo === 'Receita' ? 'text-success' : 'text-danger'}">${nota.valorTotal}</td>
-                            <td class="text-center">
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-primary" onclick="abrirModalEditar(${nota.id})" title="Editar">
-                                        <i class="fa-solid fa-pen"></i>
-                                    </button>
-                                    <button class="btn btn-outline-danger" onclick="excluirNota(${nota.id})" title="Excluir">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+        <tr>
+            <td>${badgeTipo}</td>
+            <td class="fw-bold">${nota.numeroNota}</td>
+            <td>${nota.dataEmissao}</td>
+            <td>${nota.fornecedor}</td>
+            <td>${nota.faturado}</td>
+            <td>${badgesCategorias}</td>
+            <td class="fw-bold ${nota.tipo === 'Receita' ? 'text-success' : 'text-danger'}">${nota.valorTotal}</td>
+            <td class="text-center">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="abrirModalEditar(${nota.id})" title="Editar">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="excluirNota(${nota.id})" title="Excluir">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
             }).join('');
 
         } catch (error) {
@@ -309,27 +317,79 @@
     }
 
     // Preenche e exibe o modal de edição
-    function abrirModalEditar(id) {
-        const nota = listaNotasMemoria.find(n => n.id === id);
+    async function abrirModalEditar(id) {
+        // Procura a nota garantindo comparação segura de ID
+        const nota = listaNotasMemoria.find(n => String(n.id) === String(id));
         if (!nota) return;
 
-        document.getElementById('edit-id').value = nota.id;
-        document.getElementById('edit-tipo').value = nota.tipo || 'Despesa';
-        document.getElementById('edit-numero').value = nota.numeroNota;
-        document.getElementById('edit-data').value = nota.dataEmissaoRaw || '';
-        document.getElementById('edit-valor').value = nota.valorTotalRaw || 0;
+        try {
+            // 1. Preenche os campos básicos
+            document.getElementById('edit-id').value = nota.id;
+            document.getElementById('edit-tipo').value = nota.tipo || 'Despesa';
 
-        modalInstancia.show();
+            // 2. Limpa o container de classificações
+            const container = document.getElementById('container-classificacoes');
+            container.innerHTML = '';
+
+            // 3. Busca primeiro as classificações do backend para popular listaClassificacoesDisponiveis
+            await carregarClassificacoesPorTipo();
+
+            // 4. Identifica os IDs das classificações da nota (testa todas as propriedades possíveis do seu backend)
+            let idsVinculados = [];
+
+            if (Array.isArray(nota.classificacoesIds) && nota.classificacoesIds.length > 0) {
+                idsVinculados = nota.classificacoesIds;
+            } else if (nota.classificacaoId || nota.id_classificacao || nota.id_tipo_despesa || nota.id_tipo_receita) {
+                idsVinculados = [nota.classificacaoId || nota.id_classificacao || nota.id_tipo_despesa || nota.id_tipo_receita];
+            } else if (nota.categoria) {
+                // Se o backend enviar apenas o texto da categoria/descrição (ex: "Aluguel"), localizamos o ID correspondente
+                const itemEncontrado = listaClassificacoesDisponiveis.find(c =>
+                    c.descricao?.toLowerCase() === nota.categoria.toLowerCase() ||
+                    c.categoria_pai?.toLowerCase() === nota.categoria.toLowerCase()
+                );
+                if (itemEncontrado) {
+                    idsVinculados = [itemEncontrado.id];
+                }
+            }
+
+            // 5. Renderiza as linhas selecionadas
+            if (idsVinculados.length > 0) {
+                idsVinculados.forEach(idClass => {
+                    adicionarLinhaClassificacao(idClass);
+                });
+            } else {
+                adicionarLinhaClassificacao();
+            }
+
+            // 6. Exibe o modal
+            modalInstancia.show();
+
+        } catch (err) {
+            console.error('Erro ao abrir modal de edição:', err);
+        }
+    }
+
+    async function alterarTipoRegistro() {
+        document.getElementById('container-classificacoes').innerHTML = '';
+        await carregarClassificacoesPorTipo();
+        adicionarLinhaClassificacao();
     }
 
     // Salvar as alterações do Modal
     async function salvarEdicao() {
         const id = document.getElementById('edit-id').value;
+        const classificacoes = coletarClassificacoesSelecionadas();
+
+        if (classificacoes.length > LIMITE_MAX_CLASSIFICACOES) {
+            alert(`É permitido selecionar no máximo ${LIMITE_MAX_CLASSIFICACOES} classificações.`);
+            return;
+        }
+
+
+
         const payload = {
             tipo_registro: document.getElementById('edit-tipo').value,
-            numero_nota_fiscal: document.getElementById('edit-numero').value,
-            data_emissao: document.getElementById('edit-data').value,
-            valor_total: parseFloat(document.getElementById('edit-valor').value)
+            classificacoes: classificacoes
         };
 
         try {
@@ -342,7 +402,7 @@
             const res = await response.json();
             if (res.success) {
                 modalInstancia.hide();
-                buscarNotas(); // Recarrega a tabela
+                buscarNotas();
             } else {
                 alert(res.error || 'Erro ao atualizar nota.');
             }
@@ -369,6 +429,102 @@
             console.error('Erro ao excluir nota:', err);
             alert('Falha ao tentar excluir o registro.');
         }
+    }
+
+    async function carregarClassificacoesPorTipo() {
+        const tipo = document.getElementById('edit-tipo').value;
+
+        try {
+            const response = await fetch(`/api/gerencia/buscar?entidade=classificacao`);
+            const result = await response.json();
+
+            if (result.success) {
+                // Filtra as opções mantendo apenas o tipo selecionado
+                listaClassificacoesDisponiveis = (result.data || []).filter(c => c.tipo === tipo);
+
+                // Atualiza os seletores que já estão na tela presertando o valor atual de cada um
+                document.querySelectorAll('.select-classificacao-item').forEach(select => {
+                    const valorAtual = select.value;
+                    preencherOptionsSelect(select, valorAtual);
+                });
+            }
+        } catch (err) {
+            console.error('Erro ao buscar opções de classificação:', err);
+        }
+    }
+
+    function preencherOptionsSelect(selectElement, valorSelecionado = '') {
+        let optionsHTML = '<option value="">-- Selecione uma Classificação --</option>';
+
+        // Trata e limpa o valor selecionado
+        const valAlvo = String(valorSelecionado ?? '').trim();
+
+        listaClassificacoesDisponiveis.forEach(item => {
+            const label = item.categoria_pai ? `${item.categoria_pai} > ${item.descricao}` : item.descricao;
+            const itemId = String(item.id).trim();
+
+            const selected = (itemId === valAlvo) ? 'selected="selected"' : '';
+            optionsHTML += `<option value="${item.id}" ${selected}>${label}</option>`;
+        });
+
+        selectElement.innerHTML = optionsHTML;
+
+        // Força a atribuição no DOM para garantir em navegadores Chromium/Firefox
+        if (valAlvo) {
+            selectElement.value = valAlvo;
+        }
+    }
+
+    // Insere uma nova linha de <select> com botão de remoção
+    function adicionarLinhaClassificacao(idClassificacaoSelecionada = '') {
+        const container = document.getElementById('container-classificacoes');
+        const quantidadeAtual = container.querySelectorAll('.class-row').length;
+
+        if (quantidadeAtual >= LIMITE_MAX_CLASSIFICACOES) {
+            alert(`Você pode associar no máximo ${LIMITE_MAX_CLASSIFICACOES} classificações por nota fiscal.`);
+            return;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'input-group class-row';
+
+        row.innerHTML = `
+        <select class="form-select select-classificacao-item">
+            <!-- Opções preenchidas via JS -->
+        </select>
+        <button type="button" class="btn btn-outline-danger" onclick="removerLinhaClassificacao(this)">
+            <i class="fa-solid fa-trash"></i>
+        </button>
+    `;
+
+        container.appendChild(row);
+
+        const novoSelect = row.querySelector('.select-classificacao-item');
+        preencherOptionsSelect(novoSelect, idClassificacaoSelecionada);
+    }
+
+    // Remove uma linha de classificação (mantém no mínimo uma)
+    function removerLinhaClassificacao(btn) {
+        const container = document.getElementById('container-classificacoes');
+        if (container.querySelectorAll('.class-row').length > 1) {
+            btn.closest('.class-row').remove();
+        } else {
+            alert('A nota fiscal deve possuir ao menos uma classificação.');
+        }
+    }
+
+    // Coleta todas as classificações selecionadas para salvar
+    function coletarClassificacoesSelecionadas() {
+        const selects = document.querySelectorAll('.select-classificacao-item');
+        const ids = [];
+
+        selects.forEach(select => {
+            if (select.value) {
+                ids.push(select.value);
+            }
+        });
+
+        return ids;
     }
 
     function fazerLogout() {

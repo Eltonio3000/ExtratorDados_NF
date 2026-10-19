@@ -152,7 +152,10 @@
     <div class="card-custom">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="card-title-custom m-0" id="tituloTabelaDinamica">Registros de Faturados/Clientes</div>
-            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalNovoRegistro()">
+            <button class="btn btn-sm btn-outline-primary fw-bold" id="buttonInativos">
+                <i class="fa-solid fa-box-archive me-1"></i> Mostrar Registros Deletados
+            </button>
+            <button class="btn btn-sm btn-outline-primary fw-bold" id="buttonAdd">
                 <i class="fa-solid fa-plus me-1"></i> Novo Cadastrado
             </button>
         </div>
@@ -174,7 +177,7 @@
     </div>
 </div>
 
-<!-- Modal Genérico para Cadastro e Edição -->
+<!-- Modal gerencia para Cadastro e Edição -->
 <div class="modal fade" id="modalGerencia" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -199,7 +202,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="salvarRegistroModal()">Salvar Alterações</button>
+                <button type="button" class="btn btn-primary" id="buttonSaveGerencia" onclick="salvarRegistroModal()">Salvar Alterações</button>
             </div>
         </div>
     </div>
@@ -215,7 +218,6 @@
             <div class="modal-body">
                 <form id="formfat">
                     <input type="hidden" id="modalFatId">
-                    <input type="hidden" id="modalRegistroOrigem">
 
                     <div class="mb-3" id="campoNomeFatContainer">
                         <label class="form-label fw-semibold" id="labelNomeFat">Nome / Razão Social</label>
@@ -226,11 +228,18 @@
                         <label class="form-label fw-semibold" id="labelDocFat">CPF / CNPJ</label>
                         <input type="text" id="inputDocModalFat" class="form-control">
                     </div>
+                    <div class="mb-3 d-none" id="campoContainer">
+                        <label class="form-label fw-semibold">Tipo</label>
+                        <select id="modalRegistroOrigem" class="form-select">
+                            <option value="Faturado">Faturado</option>
+                            <option value="Cliente">Cliente</option>
+                        </select>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="salvarRegistroModalFat()">Salvar Alterações</button>
+                <button type="button" class="btn btn-primary" id="buttonSave" onclick="salvarRegistroModalFat()">Salvar Alterações</button>
             </div>
         </div>
     </div>
@@ -269,7 +278,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="salvarRegistroModalClass()">Salvar Alterações</button>
+                <button type="button" class="btn btn-primary" id="ButtonSaveClass" onclick="salvarRegistroModalClass()">Salvar Alterações</button>
             </div>
         </div>
     </div>
@@ -296,12 +305,18 @@
         const entidade = document.getElementById('selectEntidade').value;
         const cabecalho = document.getElementById('cabecalhoTabelaDinamica');
         const titulo = document.getElementById('tituloTabelaDinamica');
+        const add = document.getElementById('buttonAdd');
+        const inativos = document.getElementById('buttonInativos');
         const corpo = document.getElementById('corpoTabelaDinamica');
+        const id = null;
+        const origem = null;
 
         corpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Clique em <strong>Pesquisar</strong> ou <strong>Todos</strong> para carregar os dados de ${entidade.toUpperCase()}.</td></tr>`;
 
         if (entidade === 'faturado') {
             titulo.textContent = 'Registros de Faturados';
+            add.onclick = function () {abrirModalEditarFatClass(id,origem)};
+            inativos.onclick = function () {buscarInativos()};
             cabecalho.innerHTML = `
                 <tr>
                     <th>Classificação</th>
@@ -311,6 +326,8 @@
                 </tr>`;
         } else if (entidade === 'fornecedor') {
             titulo.textContent = 'Registros de Fornecedores';
+            add.onclick = function () {abrirModalEditar(id)};
+            inativos.onclick = function () {buscarInativos()};
             cabecalho.innerHTML = `
                 <tr>
                     <th>Razão Social</th>
@@ -319,6 +336,8 @@
                 </tr>`;
         } else if (entidade === 'classificacao') {
             titulo.textContent = 'Registros de Classificação (Despesa e Receita)';
+            add.onclick = function () {abrirModalEditarFatClass(id,origem)};
+            inativos.onclick = function () {buscarInativos()};
             cabecalho.innerHTML = `
                 <tr>
                     <th>Tipo</th>
@@ -383,7 +402,7 @@
                     <td>${item.nome || 'N/A'}</td>
                     <td>${item.doc || 'N/A'}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFat(${item.id}, '${item.origem}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-pen-to-square"></i></button>
                         <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistroFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
@@ -424,39 +443,75 @@
 
     // Modal para novo / editar
     function abrirModalEditar(id) {
-        let item = registrosAtuais.find(r => r.id === id);
-        if (!item) return;
+        let item = registrosAtuais;
 
-        document.getElementById('modalRegistroId').value = item.id;
-        document.getElementById('inputNomeModal').value = item.razao_social || '';
-        document.getElementById('inputDocModal').value = item.cnpj || '';
+        if (id) {
+            item = registrosAtuais.find(r => r.id === id);
+            if (!item) return;
 
+            document.getElementById('modalRegistroId').value = item.id;
+            document.getElementById('inputNomeModal').value = item.razao_social || '';
+            document.getElementById('inputDocModal').value = item.cnpj || '';
 
-        modalInstanceGerencia.show();
+            modalInstanceGerencia.show();
 
+        } else {
+            document.getElementById('modalGerenciaLabel').textContent = 'Criar Registro';
+            document.getElementById('buttonSaveGerencia').textContent = 'Criar Novo Registro';
+            document.getElementById('modalRegistroId').value = '';
+            document.getElementById('inputNomeModal').value = '';
+            document.getElementById('inputDocModal').value = '';
+
+            modalInstanceGerencia.show();
+        }
     }
 
     function abrirModalEditarFatClass(id, origem) {
         let item = registrosAtuais;
         const entidade = document.getElementById('selectEntidade').value;
-        if (!item) return;
+        if (id && origem) {
+            if (!item) return;
 
-        if (entidade === 'faturado') {
-            item = registrosAtuais.find(r => r.id === id && r.origem === origem);
-            document.getElementById('modalFatId').value = item.id;
-            document.getElementById('modalRegistroOrigem').value = origem;
-            document.getElementById('inputNomeModalFat').value = item.nome || '';
-            document.getElementById('inputDocModalFat').value = item.doc || '';
+            if (entidade === 'faturado') {
+                item = registrosAtuais.find(r => r.id === id && r.origem === origem);
 
-            modalInstanceFat.show();
-        } else if (entidade === 'classificacao') {
-            item = registrosAtuais.find(r => r.id === id && r.tipo === origem);
-            document.getElementById('modalRegistroClassId').value = item.id;
-            document.getElementById('inputTituloModal').value = item.categoria_pai || '';
-            document.getElementById('inputDescModal').value = item.descricao || '';
-            document.getElementById('selectTipoClassificacao').value = item.tipo || '';
+                document.getElementById('modalFatId').value = item.id;
+                document.getElementById('modalRegistroOrigem').value = origem;
+                document.getElementById('inputNomeModalFat').value = item.nome || '';
+                document.getElementById('inputDocModalFat').value = item.doc || '';
 
-            modalInstanceClass.show();
+                modalInstanceFat.show();
+            } else if (entidade === 'classificacao') {
+                item = registrosAtuais.find(r => r.id === id && r.tipo === origem);
+
+                document.getElementById('modalRegistroClassId').value = item.id;
+                document.getElementById('inputTituloModal').value = item.categoria_pai || '';
+                document.getElementById('inputDescModal').value = item.descricao || '';
+                document.getElementById('selectTipoClassificacao').value = item.tipo || '';
+
+                modalInstanceClass.show();
+            }
+        } else {
+            if (entidade === 'faturado') {
+                document.getElementById('modalFatLabel').textContent = 'Criar Registro';
+                document.getElementById('buttonSave').textContent = 'Criar Novo Registro';
+                document.getElementById('campoContainer').classList.remove('d-none');
+                document.getElementById('modalRegistroOrigem').value = 'Faturado';
+                document.getElementById('modalFatId').value = '';
+                document.getElementById('inputNomeModalFat').value = '';
+                document.getElementById('inputDocModalFat').value = '';
+
+                modalInstanceFat.show();
+            } else if (entidade === 'classificacao') {
+                document.getElementById('modalGerenciaClassLabel').textContent = 'Criar Registro';
+                document.getElementById('ButtonSaveClass').textContent = 'Criar Novo Registro';
+                document.getElementById('modalRegistroClassId').value = '';
+                document.getElementById('inputTituloModal').value = '';
+                document.getElementById('inputDescModal').value = '';
+                document.getElementById('selectTipoClassificacao').value = 'Despesa';
+
+                modalInstanceClass.show();
+            }
         }
     }
 
@@ -572,6 +627,17 @@
             buscarDadosEntidade();
         } else {
             alert('Erro ao excluir: ' + result.error);
+        }
+    }
+
+    async function buscarInativos() {
+        const entidade = document.getElementById('selectEntidade').value;
+        const response = await fetch(`/api/gerencia/inativos?entidade=${entidade}`);
+        const result = await response.json();
+
+        if (result.success) {
+            console.log('Inativos encontrados:', result.data);
+            renderizarLinhasTabela(entidade, result.data);
         }
     }
 </script>
