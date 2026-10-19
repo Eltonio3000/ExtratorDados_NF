@@ -1,5 +1,5 @@
 import { processarNotaFiscalPDF } from '../Agent/geminiService.js';
-import { supabase } from '../config/supabase.js';
+import { supabase } from '../config/Supabase.js';
 import fs from 'fs';
 
 export async function extrairDadosPDF(req, res) {
