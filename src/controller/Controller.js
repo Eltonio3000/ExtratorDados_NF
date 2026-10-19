@@ -66,10 +66,11 @@ export const authController = {
                 .from('usuario')
                 .select('*')
                 .eq('email', email)
+                .eq('ativo', true)
                 .single();
 
             if (error || !usuario) {
-                return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+                return res.status(401).json({ error: 'dados invalidos, ou conta excluida.' });
             }
 
             // Valida a senha informada com o hash salvo no banco

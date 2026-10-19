@@ -115,63 +115,57 @@
     </div>
 </div>
 
+<!-- Conteúdo Principal -->
 <div class="main-content">
+    <h3 class="fw-bold mb-4">Gestão do Banco de Dados</h3>
 
-    <!-- Cabeçalho de Ações -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="fw-bold m-0">Minhas Categorias</h3>
-            <p class="text-muted small m-0">Gerencie e personalize os tipos de receita e despesa associados ao seu usuário.</p>
-        </div>
-        <button class="btn btn-primary d-flex align-items-center gap-2" onclick="abrirModalCriar()">
-            <i class="fa-solid fa-plus"></i> Nova Categoria
-        </button>
+    <!-- 1. Dropdown para selecionar o Banco / Entidade -->
+    <div class="card-custom mb-3">
+        <label class="form-label fw-bold text-primary mb-2">
+            <i class="fa-solid fa-database me-1"></i> Selecione os dados a consultar:
+        </label>
+        <select id="selectEntidade" class="form-select form-select-lg fw-semibold" onchange="trocarEntidade()">
+            <option value="faturado" selected>Faturado (Compradores/Contratadores/Consumidores)</option>
+            <option value="fornecedor">Fornecedor (Empresas/Prestadores/)</option>
+            <option value="classificacao">Classificação (Tipos de Despesas/Receitas)</option>
+        </select>
     </div>
 
-    <!-- Filtros de Tipo (Despesa vs Receita) -->
+    <!-- 2. Barra de Busca e Botões -->
     <div class="card-custom mb-4">
-        <div class="row g-3 align-items-center">
-            <div class="col-md-6">
-                <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="filtroTipoCategoria" id="btnFiltroDespesa" value="Despesa" checked onchange="carregarCategorias()">
-                    <label class="btn btn-outline-danger fw-semibold" for="btnFiltroDespesa">
-                        <i class="fa-solid fa-arrow-up me-1"></i> Categorias de Despesas
-                    </label>
-
-                    <input type="radio" class="btn-check" name="filtroTipoCategoria" id="btnFiltroReceita" value="Receita" onchange="carregarCategorias()">
-                    <label class="btn btn-outline-success fw-semibold" for="btnFiltroReceita">
-                        <i class="fa-solid fa-arrow-down me-1"></i> Categorias de Receitas
-                    </label>
-                </div>
+        <div class="row g-2">
+            <div class="col-md-8">
+                <input type="text" id="inputBuscaGerencia" class="form-control form-control-lg" placeholder="Pesquise por nome, CPF/CNPJ, descrição ou tipo">
             </div>
-            <div class="col-md-6">
-                <input type="text" id="inputBuscaCategoria" class="form-control" placeholder="Filtrar categorias pelo nome..." onkeyup="filtrarTabelaLocal()">
+            <div class="col-md-4 d-flex gap-2">
+                <button class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-1 fw-bold" onclick="buscarDadosEntidade()">
+                    <i class="fa-solid fa-magnifying-glass"></i> Pesquisar
+                </button>
+                <button class="btn btn-success w-100 d-flex align-items-center justify-content-center gap-1 fw-bold" onclick="buscarTodosEntidade()">
+                    <i class="fa-solid fa-list-check"></i> Todos
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Tabela de Categorias -->
+    <!-- 3. Tabela Dinâmica com base na opção selecionada -->
     <div class="card-custom">
-        <div class="card-title-custom d-flex justify-content-between align-items-center">
-            <span id="tituloTabela">Categorias de Despesa Cadastradas</span>
-            <span class="badge bg-secondary" id="totalCategoriasBadge">0 encontradas</span>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="card-title-custom m-0" id="tituloTabelaDinamica">Registros de Faturados/Clientes</div>
+            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalNovoRegistro()">
+                <i class="fa-solid fa-plus me-1"></i> Novo Cadastrado
+            </button>
         </div>
 
         <div class="table-responsive">
             <table class="table table-hover align-middle table-custom">
-                <thead>
-                <tr>
-                    <th>#ID</th>
-                    <th>Categoria Pai</th>
-                    <th>Descrição / Subcategoria</th>
-                    <th>Status</th>
-                    <th class="text-center">Ações</th>
-                </tr>
+                <thead id="cabecalhoTabelaDinamica">
+                <!-- Preenchido Dinamicamente via JS -->
                 </thead>
-                <tbody id="tabelaCategoriasCorpo">
+                <tbody id="corpoTabelaDinamica">
                 <tr>
                     <td colspan="5" class="text-center text-muted py-4">
-                        Carregando categorias...
+                        Clique em <strong>Pesquisar</strong> ou <strong>Todos</strong> para carregar os registros.
                     </td>
                 </tr>
                 </tbody>
@@ -180,176 +174,359 @@
     </div>
 </div>
 
-<!-- MODAL: Criar / Editar Categoria -->
-<div class="modal fade" id="modalCategoria" tabindex="-1" aria-labelledby="modalCategoriaLabel" aria-hidden="true">
+<!-- Modal Genérico para Cadastro e Edição -->
+<div class="modal fade" id="modalGerencia" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold" id="modalCategoriaLabel">Nova Categoria</h5>
+                <h5 class="modal-title fw-bold" id="modalGerenciaLabel">Editar Registro</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="formCategoria">
-                    <input type="hidden" id="categoriaId">
+                <form id="formGerencia">
+                    <input type="hidden" id="modalRegistroId">
 
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Tipo de Registro</label>
-                        <select id="categoriaTipoRegistro" class="form-select" required>
-                            <option value="Despesa">Despesa (tipo_despesa)</option>
-                            <option value="Receita">Receita (tipo_receita)</option>
-                        </select>
+                    <div class="mb-3" id="campoNomeContainer">
+                        <label class="form-label fw-semibold" id="labelNome">Nome / Razão Social</label>
+                        <input type="text" id="inputNomeModal" class="form-control" required>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Categoria Pai (Nome Principal)</label>
-                        <input type="text" id="categoriaPaiInput" class="form-control" placeholder="Ex: MANUTENÇÃO E OPERAÇÃO, SALÁRIOS..." required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Descrição / Detalhe</label>
-                        <input type="text" id="categoriaDescricaoInput" class="form-control" placeholder="Ex: Peças para trator, Pagamento de Horas extras..." required>
+                    <div class="mb-3" id="campoDocContainer">
+                        <label class="form-label fw-semibold" id="labelDoc">CPF / CNPJ</label>
+                        <input type="text" id="inputDocModal" class="form-control">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="salvarCategoria()">
-                    <i class="fa-solid fa-floppy-disk me-1"></i> Salvar Categoria
-                </button>
+                <button type="button" class="btn btn-primary" onclick="salvarRegistroModal()">Salvar Alterações</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- JS Bootstrap e Scripts da Aplicação -->
+<div class="modal fade" id="modalFat" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="modalFatLabel">Editar Registro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formfat">
+                    <input type="hidden" id="modalFatId">
+                    <input type="hidden" id="modalRegistroOrigem">
+
+                    <div class="mb-3" id="campoNomeFatContainer">
+                        <label class="form-label fw-semibold" id="labelNomeFat">Nome / Razão Social</label>
+                        <input type="text" id="inputNomeModalFat" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3" id="campoDocFatContainer">
+                        <label class="form-label fw-semibold" id="labelDocFat">CPF / CNPJ</label>
+                        <input type="text" id="inputDocModalFat" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarRegistroModalFat()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal classificação para Cadastro e Edição -->
+<div class="modal fade" id="modalGerenciaClass" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="modalGerenciaClassLabel">Editar Registro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formGerenciaClass">
+                    <input type="hidden" id="modalRegistroClassId">
+
+                    <div class="mb-3" id="campoTituloContainer">
+                        <label class="form-label fw-semibold" id="labelTitulo">Titulo</label>
+                        <input type="text" id="inputTituloModal" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3" id="campoDescContainer">
+                        <label class="form-label fw-semibold" id="labelDesc">Descrição</label>
+                        <input type="text" id="inputDescModal" class="form-control">
+                    </div>
+
+                    <div class="mb-3" id="campoTipoContainer">
+                        <label class="form-label fw-semibold">Tipo (Classificação)</label>
+                        <select id="selectTipoClassificacao" class="form-select">
+                            <option value="Despesa">Despesa</option>
+                            <option value="Receita">Receita</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarRegistroModalClass()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/Main.js"></script>
 
 <script>
-    let modalCategoriaInstance = null;
-    let listaCategoriasAtual = [];
+    let modalInstanceGerencia = null;
+    let modalInstanceFat = null;
+    let modalInstanceClass = null;
+    let registrosAtuais = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        modalCategoriaInstance = new bootstrap.Modal(document.getElementById('modalCategoria'));
-        carregarCategorias();
+        modalInstanceGerencia = new bootstrap.Modal(document.getElementById('modalGerencia'));
+        modalInstanceFat = new bootstrap.Modal(document.getElementById('modalFat'));
+        modalInstanceClass = new bootstrap.Modal(document.getElementById('modalGerenciaClass'));
+        trocarEntidade(); // Configura os cabeçalhos iniciais
     });
 
-    // 1. Carrega as Categorias do Backend conforme o Tipo Selecionado
-    async function carregarCategorias() {
-        const tipoSelecionado = document.querySelector('input[name="filtroTipoCategoria"]:checked')?.value;
-        const tabelaCorpo = document.getElementById('tabelaCategoriasCorpo');
-        const tituloTabela = document.getElementById('tituloTabela');
+    // 1. Troca as colunas da tabela conforme o dropdown selecionado
+    function trocarEntidade() {
+        const entidade = document.getElementById('selectEntidade').value;
+        const cabecalho = document.getElementById('cabecalhoTabelaDinamica');
+        const titulo = document.getElementById('tituloTabelaDinamica');
+        const corpo = document.getElementById('corpoTabelaDinamica');
 
-        tituloTabela.textContent = `Categorias de ${tipoSelecionado} Cadastradas`;
-        tabelaCorpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando...</td></tr>`;
+        corpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Clique em <strong>Pesquisar</strong> ou <strong>Todos</strong> para carregar os dados de ${entidade.toUpperCase()}.</td></tr>`;
+
+        if (entidade === 'faturado') {
+            titulo.textContent = 'Registros de Faturados';
+            cabecalho.innerHTML = `
+                <tr>
+                    <th>Classificação</th>
+                    <th>Nome Completo</th>
+                    <th>CPF/CNPJ</th>
+                    <th class="text-center">Ações</th>
+                </tr>`;
+        } else if (entidade === 'fornecedor') {
+            titulo.textContent = 'Registros de Fornecedores';
+            cabecalho.innerHTML = `
+                <tr>
+                    <th>Razão Social</th>
+                    <th>CPF/CNPJ</th>
+                    <th class="text-center">Ações</th>
+                </tr>`;
+        } else if (entidade === 'classificacao') {
+            titulo.textContent = 'Registros de Classificação (Despesa e Receita)';
+            cabecalho.innerHTML = `
+                <tr>
+                    <th>Tipo</th>
+                    <th>Nome</th>
+                    <th>Descrição</th>
+                    <th class="text-center">Ações</th>
+                </tr>`;
+        }
+    }
+
+    // 2. Busca com filtro digitado
+    function buscarDadosEntidade() {
+        const termo = document.getElementById('inputBuscaGerencia').value.trim();
+        executarConsulta(termo);
+    }
+
+    // 3. Busca todos os registros sem filtro
+    function buscarTodosEntidade() {
+        document.getElementById('inputBuscaGerencia').value = '';
+        executarConsulta('');
+    }
+
+    // 4. Executa a requisição no backend
+    async function executarConsulta(termo) {
+        const entidade = document.getElementById('selectEntidade').value;
+        const corpo = document.getElementById('corpoTabelaDinamica');
+
+        corpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando registros...</td></tr>`;
 
         try {
-            const response = await fetch(`/api/categorias?tipo=${tipoSelecionado}`);
+            const response = await fetch(`/api/gerencia/buscar?entidade=${entidade}&termo=${encodeURIComponent(termo)}`);
             const result = await response.json();
 
-            if (!result.success || !result.data) {
-                tabelaCorpo.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Erro ao carregar categorias.</td></tr>`;
+            if (!result.success) {
+                corpo.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Erro ao carregar dados.</td></tr>`;
                 return;
             }
 
-            listaCategoriasAtual = result.data;
-            renderizarTabela(listaCategoriasAtual);
+            registrosAtuais = result.data;
+            renderizarLinhasTabela(entidade, registrosAtuais);
 
         } catch (err) {
-            console.error('Erro ao buscar categorias:', err);
-            tabelaCorpo.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Erro de conexão com o servidor.</td></tr>`;
+            console.error('Erro na consulta:', err);
+            corpo.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Erro de conexão com o servidor.</td></tr>`;
         }
     }
 
-    // 2. Renderiza as linhas na Tabela
-    function renderizarTabela(lista) {
-        const tabelaCorpo = document.getElementById('tabelaCategoriasCorpo');
-        const badgeCount = document.getElementById('totalCategoriasBadge');
+    // 5. Renderiza dinamicamente o corpo da tabela
+    function renderizarLinhasTabela(entidade, lista) {
+        const corpo = document.getElementById('corpoTabelaDinamica');
 
-        badgeCount.textContent = `${lista.length} encontradas`;
-
-        if (lista.length === 0) {
-            tabelaCorpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Nenhuma categoria encontrada para este tipo.</td></tr>`;
+        if (!lista || lista.length === 0) {
+            corpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>`;
             return;
         }
 
-        tabelaCorpo.innerHTML = lista.map(item => `
-            <tr>
-                <td class="fw-bold">#${item.id}</td>
-                <td><span class="badge bg-dark">${item.categoria_pai || 'Geral'}</span></td>
-                <td>${item.descricao || '-'}</td>
-                <td><span class="badge bg-success">Ativa</span></td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id})">
-                        <i class="fa-solid fa-pen-to-square"></i>
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deletarCategoria(${item.id})">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+        corpo.innerHTML = lista.map(item => {
+            if (entidade === 'faturado') {
+                return `
+                <tr>
+                    <td><span class="badge bg-primary rounded-pill px-3 py-2 fw-semibold">${item.origem || 'N/A'}</span></td>
+                    <td>${item.nome || 'N/A'}</td>
+                    <td>${item.doc || 'N/A'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFat(${item.id}, '${item.origem}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistroFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            } else if (entidade === 'fornecedor') {
+                return `
+                <tr>
+                    <td>${item.razao_social || 'N/A'}</td>
+                    <td>${item.cnpj || 'N/A'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistro(${item.id})"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            } else if (entidade === 'faturado') {
+                return `
+                <tr>
+                    <td>${item.nome || 'N/A'}</td>
+                    <td>${item.cpf_cnpj || 'N/A'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistro(${item.id})"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            } else if (entidade === 'classificacao') {
+                return `
+                <tr>
+                    <td><span class="badge ${item.tipo === 'Despesa' ? 'bg-danger' : 'bg-success'}">${item.tipo}</span></td>
+                    <td>${item.categoria_pai || 'Geral'}</td>
+                    <td>${item.descricao || '-'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.tipo}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistroFatClass(${item.id}, '${item.tipo}')"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }
+        }).join('');
     }
 
-    // 3. Filtro local no input de texto
-    function filtrarTabelaLocal() {
-        const termo = document.getElementById('inputBuscaCategoria').value.toLowerCase();
-        const filtradas = listaCategoriasAtual.filter(item =>
-            (item.categoria_pai && item.categoria_pai.toLowerCase().includes(termo)) ||
-            (item.descricao && item.descricao.toLowerCase().includes(termo))
-        );
-        renderizarTabela(filtradas);
-    }
-
-    // 4. Abre o Modal para Criar
-    function abrirModalCriar() {
-        document.getElementById('formCategoria').reset();
-        document.getElementById('categoriaId').value = '';
-        document.getElementById('modalCategoriaLabel').textContent = 'Nova Categoria';
-
-        const tipoAtual = document.querySelector('input[name="filtroTipoCategoria"]:checked')?.value || 'Despesa';
-        document.getElementById('categoriaTipoRegistro').value = tipoAtual;
-
-        modalCategoriaInstance.show();
-    }
-
-    // 5. Abre o Modal para Editar
+    // Modal para novo / editar
     function abrirModalEditar(id) {
-        const cat = listaCategoriasAtual.find(item => item.id === id);
-        if (!cat) return;
+        let item = registrosAtuais.find(r => r.id === id);
+        if (!item) return;
 
-        const tipoAtual = document.querySelector('input[name="filtroTipoCategoria"]:checked')?.value || 'Despesa';
+        document.getElementById('modalRegistroId').value = item.id;
+        document.getElementById('inputNomeModal').value = item.razao_social || '';
+        document.getElementById('inputDocModal').value = item.cnpj || '';
 
-        document.getElementById('categoriaId').value = cat.id;
-        document.getElementById('categoriaTipoRegistro').value = tipoAtual;
-        document.getElementById('categoriaPaiInput').value = cat.categoria_pai || '';
-        document.getElementById('categoriaDescricaoInput').value = cat.descricao || '';
-        document.getElementById('modalCategoriaLabel').textContent = 'Editar Categoria #' + cat.id;
 
-        modalCategoriaInstance.show();
+        modalInstanceGerencia.show();
+
     }
 
-    // 6. Salva (Cria ou Atualiza) a Categoria no Backend
-    async function salvarCategoria() {
-        const id = document.getElementById('categoriaId').value;
-        const tipoRegistro = document.getElementById('categoriaTipoRegistro').value;
-        const categoriaPai = document.getElementById('categoriaPaiInput').value.trim();
-        const descricao = document.getElementById('categoriaDescricaoInput').value.trim();
+    function abrirModalEditarFatClass(id, origem) {
+        let item = registrosAtuais;
+        const entidade = document.getElementById('selectEntidade').value;
+        if (!item) return;
 
-        if (!categoriaPai || !descricao) {
-            alert('Por favor, preencha todos os campos obrigatórios!');
+        if (entidade === 'faturado') {
+            item = registrosAtuais.find(r => r.id === id && r.origem === origem);
+            document.getElementById('modalFatId').value = item.id;
+            document.getElementById('modalRegistroOrigem').value = origem;
+            document.getElementById('inputNomeModalFat').value = item.nome || '';
+            document.getElementById('inputDocModalFat').value = item.doc || '';
+
+            modalInstanceFat.show();
+        } else if (entidade === 'classificacao') {
+            item = registrosAtuais.find(r => r.id === id && r.tipo === origem);
+            document.getElementById('modalRegistroClassId').value = item.id;
+            document.getElementById('inputTituloModal').value = item.categoria_pai || '';
+            document.getElementById('inputDescModal').value = item.descricao || '';
+            document.getElementById('selectTipoClassificacao').value = item.tipo || '';
+
+            modalInstanceClass.show();
+        }
+    }
+
+    async function salvarRegistroModal() {
+        const id = document.getElementById('modalRegistroId').value;
+        const entidade = document.getElementById('selectEntidade').value;
+        const nome = document.getElementById('inputNomeModal').value;
+        const doc = document.getElementById('inputDocModal').value;
+
+        const response = await fetch('/api/gerencia/salvar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, entidade, nome, doc })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            modalInstanceGerencia.hide();
+            buscarDadosEntidade();
+        } else {
+            alert('Erro ao salvar: ' + result.error);
+        }
+    }
+
+    async function salvarRegistroModalFat() {
+        const id = document.getElementById('modalFatId').value;
+        const entidade = document.getElementById('selectEntidade').value;
+        const origem = document.getElementById('modalRegistroOrigem').value;
+        const nome = document.getElementById('inputNomeModalFat').value;
+        const doc = document.getElementById('inputDocModalFat').value;
+
+        const response = await fetch('/api/gerencia/salvar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, entidade, origem, nome, doc })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            modalInstanceFat.hide();
+            buscarDadosEntidade();
+        } else {
+            alert('Erro ao salvar: ' + result.error);
+        }
+    }
+
+    async function salvarRegistroModalClass() {
+        const idInput = document.getElementById('modalRegistroClassId').value;
+        const entidade = document.getElementById('selectEntidade').value;
+        const nome = document.getElementById('inputTituloModal').value;
+        const desc = document.getElementById('inputDescModal').value;
+        const tipo = document.getElementById('selectTipoClassificacao').value;
+        const usuarioLogado = JSON.parse(localStorage.getItem('usuarioLogado'));
+
+        if (!nome) {
+            alert('Por favor, informe a Categoria / Título!');
             return;
         }
 
         const payload = {
-            id: id || null,
-            tipo_registro: tipoRegistro,
-            categoria_pai: categoriaPai,
-            descricao: descricao
+            id: idInput ? Number(idInput) : null,
+            entidade: entidade,
+            nome: nome,
+            desc: desc,
+            tipo: tipo,
+            id_usuario: usuarioLogado.id
         };
 
         try {
-            const response = await fetch('/api/categorias/salvar', {
+            const response = await fetch('/api/gerencia/salvar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -358,38 +535,43 @@
             const result = await response.json();
 
             if (result.success) {
-                modalCategoriaInstance.hide();
-                carregarCategorias();
+                modalInstanceClass.hide();
+                // Recarrega os dados da tabela
+                buscarDadosEntidade();
             } else {
-                alert('Erro ao salvar: ' + (result.error || 'Tente novamente.'));
+                alert('Erro ao salvar no banco: ' + result.error);
             }
         } catch (err) {
             console.error('Erro na requisição:', err);
-            alert('Erro de conexão ao salvar categoria.');
+            alert('Erro de comunicação com o servidor.');
         }
     }
 
-    // 7. Deleta Categoria
-    async function deletarCategoria(id) {
-        if (!confirm(`Tem certeza que deseja excluir a categoria #${id}?`)) return;
+    async function deletarRegistro(id) {
+        if (!confirm('Deseja realmente excluir este registro?')) return;
+        const entidade = document.getElementById('selectEntidade').value;
 
-        const tipoRegistro = document.querySelector('input[name="filtroTipoCategoria"]:checked')?.value || 'Despesa';
+        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}`, { method: 'DELETE' });
+        const result = await response.json();
 
-        try {
-            const response = await fetch(`/api/categorias/${id}?tipo=${tipoRegistro}`, {
-                method: 'DELETE'
-            });
+        if (result.success) {
+            buscarDadosEntidade();
+        } else {
+            alert('Erro ao excluir: ' + result.error);
+        }
+    }
 
-            const result = await response.json();
+    async function deletarRegistroFatClass(id, origem) {
+        if (!confirm('Deseja realmente excluir este registro?')) return;
+        const entidade = document.getElementById('selectEntidade').value;
 
-            if (result.success) {
-                carregarCategorias();
-            } else {
-                alert('Não foi possível excluir: ' + (result.error || 'A categoria pode estar associada a notas lançadas.'));
-            }
-        } catch (err) {
-            console.error('Erro ao deletar:', err);
-            alert('Erro de comunicação com o servidor.');
+        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}&origem=${origem}`, { method: 'DELETE' });
+        const result = await response.json();
+
+        if (result.success) {
+            buscarDadosEntidade();
+        } else {
+            alert('Erro ao excluir: ' + result.error);
         }
     }
 </script>

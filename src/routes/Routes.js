@@ -5,6 +5,7 @@ import { authController } from '../controller/Controller.js';
 import { extrairDadosPDF } from '../controller/danfeController.js';
 import { upload } from '../config/upload.js';
 import { supabase } from '../config/Supabase.js'; // Confirme se seu arquivo de conexão está em src/config
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -19,13 +20,16 @@ router.get('/registro', (req, res) => {
     res.sendFile(path.join(viewPath, 'Registro.html'));
 });
 router.get('/extrairdados', (req, res) => {
-    res.sendFile(path.join(viewPath, 'extrairdados.html'));
+    res.sendFile(path.join(viewPath, 'ExtrairDados.html'));
 });
 router.get('/historico', (req, res) => {
     res.sendFile(path.join(viewPath, 'Historico.html'));
 });
 router.get('/categorias', (req, res) => {
     res.sendFile(path.join(viewPath, 'Categorias.html'));
+});
+router.get('/configuracao', (req, res) => {
+    res.sendFile(path.join(viewPath, 'Configuracao.html'));
 });
 
 router.post('/api/auth/registro', authController.registrar);
@@ -578,82 +582,286 @@ router.delete('/api/notas/excluir/:id', async (req, res) => {
     }
 });
 
-// A. Buscar Categorias vinculadas ao usuário ou globais
-router.get('/api/categorias', async (req, res) => {
+router.get('/api/gerencia/buscar', async (req, res) => {
     try {
-        const tipo = req.query.tipo || 'Despesa';
-        const tabelaTarget = (tipo === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
-        const idUsuario = req.session?.usuario?.id || 1; // Pega o usuário logado
+        const { entidade, termo } = req.query;
+        const busca = (termo || '').trim();
 
+        let data = [];
+        let error = null;
+
+        if (entidade === 'faturado') {
+            // Busca simultaneamente em 'faturado' e em 'cliente'
+            let queryFat = supabase.from('faturado').select('id, nome_completo, cpf');
+            let queryCli = supabase.from('cliente').select('id, nome, cpf_cnpj');
+
+            if (busca) {
+                queryFat = queryFat.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%`);
+                queryCli = queryCli.or(`nome.ilike.%${busca}%,cpf_cnpj.ilike.%${busca}%`);
+            }
+
+            const [{ data: fatData, error: fatErr }, { data: cliData, error: cliErr }] = await Promise.all([
+                queryFat.order('id', { ascending: false }),
+                queryCli.order('id', { ascending: false })
+            ]);
+
+            if (fatErr) throw fatErr;
+            if (cliErr) throw cliErr;
+
+            // Mapeia e padroniza as duas origens em uma única lista
+            const listaFat = (fatData || []).map(f => ({
+                id: f.id,
+                nome: f.nome_completo,
+                doc: f.cpf,
+                origem: 'Faturado'
+            }));
+
+            const listaCli = (cliData || []).map(c => ({
+                id: c.id,
+                nome: c.nome,
+                doc: c.cpf_cnpj,
+                origem: 'Cliente'
+            }));
+
+            data = [...listaFat, ...listaCli];
+
+        } else if (entidade === 'fornecedor') {
+            let query = supabase.from('fornecedor').select('id, razao_social, cnpj');
+            if (busca) query = query.or(`razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%`);
+            ({ data, error } = await query.order('id', { ascending: false }));
+
+        } else if (entidade === 'classificacao') {
+            // Busca tanto em tipo_despesa quanto em tipo_receita
+            const [{ data: desp }, { data: rec }] = await Promise.all([
+                supabase.from('tipo_despesa').select('id, categoria_pai, descricao'),
+                supabase.from('tipo_receita').select('id, categoria_pai, descricao')
+            ]);
+
+            const listaDesp = (desp || []).map(d => ({ ...d, tipo: 'Despesa' }));
+            const listaRec = (rec || []).map(r => ({ ...r, tipo: 'Receita' }));
+
+            data = [...listaDesp, ...listaRec];
+
+            // Remove da lista os itens com categoria_pai "Geral / Não Classificado"
+            data = data.filter(item => {
+                const catPai = (item.categoria_pai || '').trim().toLowerCase();
+                return catPai !== 'geral / não classificado' && catPai !== 'geral/não classificado';
+            });
+
+            if (busca) {
+                const bLower = busca.toLowerCase();
+                data = data.filter(i =>
+                    (i.categoria_pai && i.categoria_pai.toLowerCase().includes(bLower)) ||
+                    (i.descricao && i.descricao.toLowerCase().includes(bLower))
+                );
+            }
+        }
+
+        if (error) throw error;
+        return res.json({ success: true, data });
+
+    } catch (err) {
+        console.error('Erro ao buscar gerência:', err);
+        return res.status(500).json({ error: 'Erro interno no servidor.' });
+    }
+});
+
+// Salvar (Editar/Criar) Registro Dinâmico
+router.post('/api/gerencia/salvar', async (req, res) => {
+    try {
+        const { id, entidade, nome, doc, desc, tipo, id_usuario, origem } = req.body;
+
+        // Trata o ID: se for string vazia, null ou undefined, vira undefined
+        // Se tiver valor (edição), converte explicitamente para Number
+        const idValido = (id && id !== '') ? Number(id) : undefined;
+
+        if (entidade === 'faturado') {
+            const origemNormalizada = (origem || '').toLowerCase();
+            const tabelaTarget = (origemNormalizada === 'cliente') ? 'cliente' : 'faturado';
+            const campoNome = (tabelaTarget === 'cliente') ? 'nome' : 'nome_completo';
+            const campoDoc = (tabelaTarget === 'cliente') ? 'cpf_cnpj' : 'cpf';
+
+            const objetoDados = {
+                id: idValido,
+                [campoNome]: nome,
+                [campoDoc]: doc
+            };
+
+            const { error } = await supabase
+                .from(tabelaTarget)
+                .upsert(objetoDados);
+            if (error) throw error;
+
+        } else if (entidade === 'fornecedor') {
+            const { error } = await supabase
+                .from('fornecedor')
+                .upsert({ id: idValido, razao_social: nome, cnpj: doc });
+            if (error) throw error;
+
+        } else if (entidade === 'cliente') {
+            const { error } = await supabase
+                .from('cliente')
+                .upsert({ id: idValido, nome: nome, cpf_cnpj: doc });
+            if (error) throw error;
+
+        } else if (entidade === 'classificacao') {
+            // Garante a escolha da tabela correta
+            const tabelaTarget = (tipo === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
+
+            // Captura a descrição (seja enviada em 'desc' ou em 'doc')
+            const descricaoFinal = desc || doc || '';
+
+            const { error } = await supabase
+                .from(tabelaTarget)
+                .upsert({
+                    id: idValido,
+                    categoria_pai: nome,
+                    descricao: descricaoFinal,
+                    criador: id_usuario
+                });
+
+            if (error) throw error;
+        }
+
+        return res.json({ success: true, message: 'Registro salvo com sucesso!' });
+    } catch (err) {
+        console.error('Erro ao salvar gerência:', err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// Deletar Registro Dinâmico
+router.delete('/api/gerencia/deletar', async (req, res) => {
+    try {
+        const { entidade, id , origem} = req.query;
+
+        const origemLower = (origem || '').toLowerCase();
+
+        const tabela = entidade === 'faturado' && origemLower === 'cliente' ? 'cliente' :
+            entidade === 'faturado' ? 'faturado' :
+                entidade === 'fornecedor' ? 'fornecedor' :
+                    entidade === 'classificacao' && origemLower === 'receita' ? 'tipo_receita' :
+                        'tipo_despesa';
+
+        const { error } = await supabase.from(tabela).delete().eq('id', id);
+        if (error) throw error;
+
+        return res.json({ success: true, message: 'Registro excluído!' });
+    } catch (err) {
+        console.error('Erro ao deletar:', err);
+        return res.status(500).json({ error: 'O registro possui vínculos e não pode ser excluído.' });
+    }
+});
+
+// A. Consultar perfil do usuário autenticado
+router.get('/api/usuario/meu-perfil', async (req, res) => {
+    try {
+        const id_usuario = req.query.id_usuario;
         const { data, error } = await supabase
-            .from(tabelaTarget)
-            .select('id, categoria_pai, descricao, ativo, criador')
-            .or(`criador.eq.${idUsuario},criador.is.null`)
-            .order('categoria_pai', { ascending: true });
+            .from('usuario')
+            .select('id, nome_completo, email, ativo')
+            .eq('id', id_usuario)
+            .single();
 
         if (error) throw error;
 
         return res.json({ success: true, data });
     } catch (err) {
-        console.error('Erro ao buscar categorias:', err);
-        return res.status(500).json({ error: 'Erro interno ao consultar categorias.' });
+        console.error('Erro ao buscar perfil:', err);
+        return res.status(500).json({ error: 'Erro ao carregar dados do usuário.' });
     }
 });
 
-// B. Salvar (Criar ou Editar) Categoria
-router.post('/api/categorias/salvar', async (req, res) => {
+// B. Atualizar e-mail do usuário
+router.put('/api/usuario/atualizar-email', async (req, res) => {
     try {
-        const { id, tipo_registro, categoria_pai, descricao } = req.body;
-        const tabelaTarget = (tipo_registro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
-        const idUsuario = req.session?.usuario?.id || 1;
+        const { id, email } = req.body;
 
-        if (id) {
-            // Edição
-            const { error } = await supabase
-                .from(tabelaTarget)
-                .update({ categoria_pai, descricao })
-                .eq('id', id);
-
-            if (error) throw error;
-        } else {
-            // Criação
-            const { error } = await supabase
-                .from(tabelaTarget)
-                .insert([{
-                    categoria_pai,
-                    descricao,
-                    ativo: true,
-                    criador: idUsuario
-                }]);
-
-            if (error) throw error;
+        if (!id || !email) {
+            return res.status(400).json({ error: 'ID e e-mail são obrigatórios.' });
         }
 
-        return res.json({ success: true, message: 'Categoria salva com sucesso!' });
-    } catch (err) {
-        console.error('Erro ao salvar categoria:', err);
-        return res.status(500).json({ error: 'Erro ao salvar categoria.' });
-    }
-});
-
-// C. Deletar Categoria
-router.delete('/api/categorias/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const tipo = req.query.tipo || 'Despesa';
-        const tabelaTarget = (tipo === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
-
         const { error } = await supabase
-            .from(tabelaTarget)
-            .delete()
+            .from('usuario')
+            .update({ email })
             .eq('id', id);
 
         if (error) throw error;
 
-        return res.json({ success: true, message: 'Categoria excluída com sucesso!' });
+        return res.json({ success: true, message: 'E-mail alterado com sucesso!' });
     } catch (err) {
-        console.error('Erro ao excluir categoria:', err);
-        return res.status(500).json({ error: 'Não foi possível excluir a categoria. Verifique se existem contas vinculadas a ela.' });
+        console.error('Erro ao atualizar e-mail:', err);
+        return res.status(500).json({ error: 'Não foi possível atualizar o e-mail.' });
+    }
+});
+
+// C. Exclusão Lógica (Inativação da Conta)
+router.patch('/api/usuario/inativar/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Altera o status 'ativo' para false sem deletar a linha da tabela 'usuario'
+        const { error } = await supabase
+            .from('usuario')
+            .update({ ativo: false })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        // Destrói a sessão caso esteja usando express-session
+        if (req.session) {
+            req.session.destroy();
+        }
+
+        return res.json({ success: true, message: 'Conta inativada com sucesso.' });
+    } catch (err) {
+        console.error('Erro ao inativar conta:', err);
+        return res.status(500).json({ error: 'Erro ao desativar conta.' });
+    }
+});
+
+// Rota para Alteração de Senha com validação por bcryptjs
+router.put('/api/usuario/alterar-senha', async (req, res) => {
+    try {
+        const { id, senhaAtual, novaSenha } = req.body;
+
+        if (!id || !senhaAtual || !novaSenha) {
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+        }
+
+        // 1. Busca o hash da senha cadastrada no banco de dados
+        const { data: usuario, error: fetchError } = await supabase
+            .from('usuario')
+            .select('id, senha')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !usuario) {
+            return res.status(404).json({ error: 'Usuário não encontrado.' });
+        }
+
+        // 2. Compara a senha atual enviada com o hash salvo no Supabase
+        const senhaCorreta = await bcrypt.compare(senhaAtual, usuario.senha);
+        if (!senhaCorreta) {
+            return res.status(400).json({ error: 'A senha atual informada está incorreta.' });
+        }
+
+        // 3. Gera o novo hash para a nova senha
+        const salt = await bcrypt.genSalt(10);
+        const novoHash = await bcrypt.hash(novaSenha, salt);
+
+        // 4. Atualiza a senha no banco de dados
+        const { error: updateError } = await supabase
+            .from('usuario')
+            .update({ senha: novoHash })
+            .eq('id', id);
+
+        if (updateError) throw updateError;
+
+        return res.json({ success: true, message: 'Senha atualizada com sucesso!' });
+    } catch (err) {
+        console.error('Erro ao alterar senha:', err);
+        return res.status(500).json({ error: 'Erro interno ao processar alteração de senha.' });
     }
 });
 
