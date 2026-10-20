@@ -106,8 +106,8 @@
         <a href="/historico" class="nav-link active">
             <i class="fa-solid fa-clock-rotate-left"></i> Histórico de NFs
         </a>
-        <a href="/categorias" class="nav-link">
-            <i class="fa-solid fa-briefcase"></i> Categorias
+        <a href="/gerencia" class="nav-link">
+            <i class="fa-solid fa-briefcase"></i> Gerência
         </a>
         <a href="/configuracao" class="nav-link">
             <i class="fa-solid fa-sliders"></i> configuração
@@ -246,6 +246,8 @@
 
     // Requisição para a API
     async function carregarDadosHistorico(termo) {
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
         const tbody = document.getElementById('tabela-corpo');
         tbody.innerHTML = `
                 <tr>
@@ -256,7 +258,7 @@
                 </tr>`;
 
         try {
-            const response = await fetch(`/api/notas/historico?termo=${encodeURIComponent(termo)}`);
+            const response = await fetch(`/api/notas/historico?termo=${encodeURIComponent(termo)}&idUser=${idUser}`);
             const result = await response.json();
 
             if (!result.success || !result.data || result.data.length === 0) {
@@ -385,8 +387,6 @@
             return;
         }
 
-
-
         const payload = {
             tipo_registro: document.getElementById('edit-tipo').value,
             classificacoes: classificacoes
@@ -414,14 +414,21 @@
 
     // Excluir Nota Fiscal
     async function excluirNota(id) {
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
+        const nota = listaNotasMemoria.find(n => String(n.id) === String(id));
+        if (!nota) {
+            alert('Nota fiscal não encontrada para exclusão.');
+            return;
+        }
         if (!confirm('Tem certeza que deseja excluir este registro de nota fiscal?')) return;
 
         try {
-            const response = await fetch(`/api/notas/excluir/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/notas/excluir/${id}?idUser=${idUser}&tipo=${encodeURIComponent(nota.tipo)}`, { method: 'DELETE' });
             const res = await response.json();
 
             if (res.success) {
-                buscarNotas(); // Recarrega a tabela
+                buscarNotas();
             } else {
                 alert(res.error || 'Erro ao excluir registro.');
             }
@@ -432,10 +439,11 @@
     }
 
     async function carregarClassificacoesPorTipo() {
+        const idUser = JSON.parse(localStorage.getItem('usuarioLogado')).id;
         const tipo = document.getElementById('edit-tipo').value;
 
         try {
-            const response = await fetch(`/api/gerencia/buscar?entidade=classificacao`);
+            const response = await fetch(`/api/gerencia/buscar?entidade=classificacao&idUser=${idUser}`);
             const result = await response.json();
 
             if (result.success) {
@@ -490,12 +498,11 @@
 
         row.innerHTML = `
         <select class="form-select select-classificacao-item">
-            <!-- Opções preenchidas via JS -->
-        </select>
-        <button type="button" class="btn btn-outline-danger" onclick="removerLinhaClassificacao(this)">
-            <i class="fa-solid fa-trash"></i>
-        </button>
-    `;
+            </select>
+            <button type="button" class="btn btn-outline-danger" onclick="removerLinhaClassificacao(this)">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
 
         container.appendChild(row);
 
@@ -528,7 +535,7 @@
     }
 
     function fazerLogout() {
-        localStorage.removeItem('usuario_logado');
+        localStorage.removeItem('usuarioLogado');
         window.location.href = '/login';
     }
 </script>

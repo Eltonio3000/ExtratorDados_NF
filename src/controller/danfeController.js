@@ -10,7 +10,8 @@ export async function extrairDadosPDF(req, res) {
     }
 
     const tipoRegistro = req.body.tipo_registro || 'Despesa'; // 'Despesa' ou 'Receita'
-    const idUsuario = req.body.usuario.id;
+    const idUsuario = req.body.idUsuario;
+
 
     const tabelaCategorias = (tipoRegistro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
 
@@ -18,11 +19,8 @@ export async function extrairDadosPDF(req, res) {
     let query = supabase
         .from(tabelaCategorias)
         .select('id, descricao, categoria_pai')
-        .eq('ativo', true);
-
-    if (idUsuario) {
-      query = query.eq('criador', idUsuario);
-    }
+        .eq('ativo', true)
+        .eq('criador', idUsuario);
 
     const { data: categorias, error: errCat } = await query;
 

@@ -82,6 +82,9 @@
             font-weight: 600;
             border-bottom: 2px solid #dee2e6;
         }
+        .linha-inativa > td {
+            background-color: #ffefef;
+        }
     </style>
 </head>
 <body>
@@ -106,8 +109,8 @@
         <a href="/historico" class="nav-link">
             <i class="fa-solid fa-clock-rotate-left"></i> Histórico de NFs
         </a>
-        <a href="/categorias" class="nav-link active">
-            <i class="fa-solid fa-briefcase"></i> Categorias
+        <a href="/gerencia" class="nav-link active">
+            <i class="fa-solid fa-briefcase"></i> Gerência
         </a>
         <a href="/configuracao" class="nav-link">
             <i class="fa-solid fa-sliders"></i> configuração
@@ -177,7 +180,7 @@
     </div>
 </div>
 
-<!-- Modal gerencia para Cadastro e Edição -->
+<!-- Modal gerencia para Cadastro e Edição fornecedor-->
 <div class="modal fade" id="modalGerencia" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -208,6 +211,7 @@
     </div>
 </div>
 
+<!-- Modal gerencia para Cadastro e Edição faturado-->
 <div class="modal fade" id="modalFat" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -245,7 +249,7 @@
     </div>
 </div>
 
-<!-- Modal classificação para Cadastro e Edição -->
+<!-- Modal para Cadastro e Edição classificação-->
 <div class="modal fade" id="modalGerenciaClass" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -292,12 +296,21 @@
     let modalInstanceFat = null;
     let modalInstanceClass = null;
     let registrosAtuais = [];
+    let registrosInativos = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         modalInstanceGerencia = new bootstrap.Modal(document.getElementById('modalGerencia'));
         modalInstanceFat = new bootstrap.Modal(document.getElementById('modalFat'));
         modalInstanceClass = new bootstrap.Modal(document.getElementById('modalGerenciaClass'));
         trocarEntidade(); // Configura os cabeçalhos iniciais
+        const usuarioLogado = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const badgeElement = document.getElementById('badgeUsuario');
+        if (badgeElement) {
+            badgeElement.textContent = usuarioLogado.nome_completo.trim() || 'user';
+        }
+        if (usuarioLogado && usuarioLogado.nome) {
+            document.getElementById('sidebar-username').innerText = usuarioLogado.nome.toUpperCase();
+        }
     });
 
     // 1. Troca as colunas da tabela conforme o dropdown selecionado
@@ -364,11 +377,12 @@
     async function executarConsulta(termo) {
         const entidade = document.getElementById('selectEntidade').value;
         const corpo = document.getElementById('corpoTabelaDinamica');
+        const idUser = JSON.parse(localStorage.getItem('usuarioLogado')).id;
 
         corpo.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i> Carregando registros...</td></tr>`;
 
         try {
-            const response = await fetch(`/api/gerencia/buscar?entidade=${entidade}&termo=${encodeURIComponent(termo)}`);
+            const response = await fetch(`/api/gerencia/buscar?entidade=${entidade}&termo=${encodeURIComponent(termo)}&idUser=${idUser}`);
             const result = await response.json();
 
             if (!result.success) {
@@ -377,7 +391,7 @@
             }
 
             registrosAtuais = result.data;
-            renderizarLinhasTabela(entidade, registrosAtuais);
+            renderizarLinhasTabela(entidade, registrosAtuais, false);
 
         } catch (err) {
             console.error('Erro na consulta:', err);
@@ -386,7 +400,7 @@
     }
 
     // 5. Renderiza dinamicamente o corpo da tabela
-    function renderizarLinhasTabela(entidade, lista) {
+    function renderizarLinhasTabela(entidade, lista, inativo) {
         const corpo = document.getElementById('corpoTabelaDinamica');
 
         if (!lista || lista.length === 0) {
@@ -395,46 +409,40 @@
         }
 
         corpo.innerHTML = lista.map(item => {
+
+            const corFundo = inativo ? 'linha-inativa' : '';
+            const btnExcluirClasse = inativo ? 'd-none' : '';
+
             if (entidade === 'faturado') {
                 return `
-                <tr>
+                <tr class="${corFundo}">
                     <td><span class="badge bg-primary rounded-pill px-3 py-2 fw-semibold">${item.origem || 'N/A'}</span></td>
                     <td>${item.nome || 'N/A'}</td>
                     <td>${item.doc || 'N/A'}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistroFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.origem}', ${inativo})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger ${btnExcluirClasse}" onclick="deletarRegistroFatClass(${item.id}, '${item.origem}')"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
             } else if (entidade === 'fornecedor') {
                 return `
-                <tr>
+                <tr class="${corFundo}">
                     <td>${item.razao_social || 'N/A'}</td>
                     <td>${item.cnpj || 'N/A'}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id})"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistro(${item.id})"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>`;
-            } else if (entidade === 'faturado') {
-                return `
-                <tr>
-                    <td>${item.nome || 'N/A'}</td>
-                    <td>${item.cpf_cnpj || 'N/A'}</td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id})"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistro(${item.id})"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditar(${item.id}, ${inativo})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger ${btnExcluirClasse}" onclick="deletarRegistro(${item.id})"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
             } else if (entidade === 'classificacao') {
                 return `
-                <tr>
+                <tr class="${corFundo}">
                     <td><span class="badge ${item.tipo === 'Despesa' ? 'bg-danger' : 'bg-success'}">${item.tipo}</span></td>
                     <td>${item.categoria_pai || 'Geral'}</td>
                     <td>${item.descricao || '-'}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.tipo}')"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deletarRegistroFatClass(${item.id}, '${item.tipo}')"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="abrirModalEditarFatClass(${item.id}, '${item.tipo}', ${inativo})"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button class="btn btn-sm btn-outline-danger ${btnExcluirClasse}" onclick="deletarRegistroFatClass(${item.id}, '${item.tipo}')"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
             }
@@ -442,74 +450,203 @@
     }
 
     // Modal para novo / editar
-    function abrirModalEditar(id) {
-        let item = registrosAtuais;
+    function abrirModalEditar(id, inativo) {
+        const nomeInput = document.getElementById('inputNomeModal');
+        const docInput = document.getElementById('inputDocModal');
+        const button = document.getElementById('buttonSaveGerencia');
 
-        if (id) {
-            item = registrosAtuais.find(r => r.id === id);
-            if (!item) return;
+        if (inativo) {
+            // Busca exclusivamente na lista de inativos
+            const itemInativo = registrosInativos.find(r => r.id === id);
+            if (!itemInativo) return;
 
-            document.getElementById('modalRegistroId').value = item.id;
-            document.getElementById('inputNomeModal').value = item.razao_social || '';
-            document.getElementById('inputDocModal').value = item.cnpj || '';
+            document.getElementById('modalGerenciaLabel').textContent = 'Restaurar Registro?';
+            document.getElementById('buttonSaveGerencia').textContent = 'Restaurar Registro';
+            document.getElementById('modalRegistroId').value = itemInativo.id;
+
+            // Preenche com os dados de itemInativo
+            nomeInput.value = itemInativo.razao_social || itemInativo.nome || '';
+            docInput.value = itemInativo.cnpj || itemInativo.doc || '';
+
+            // Bloqueia a edição dos campos no modo restauração
+            nomeInput.disabled = true;
+            nomeInput.required = false;
+            docInput.disabled = true;
+            docInput.required = false;
+
+            button.onclick = () => {salvarRestauracaoGerencia(itemInativo.id, null)}
 
             modalInstanceGerencia.show();
 
         } else {
-            document.getElementById('modalGerenciaLabel').textContent = 'Criar Registro';
-            document.getElementById('buttonSaveGerencia').textContent = 'Criar Novo Registro';
-            document.getElementById('modalRegistroId').value = '';
-            document.getElementById('inputNomeModal').value = '';
-            document.getElementById('inputDocModal').value = '';
+            // Tenta buscar nos registros atuais
+            const item = registrosAtuais.find(r => r.id === id);
 
+            // Garante que os campos fiquem HABILITADOS para edição ou criação
+            nomeInput.disabled = false;
+            nomeInput.required = true;
+            docInput.disabled = false;
+            docInput.required = true;
+
+            if (item) {
+                // Modo Edição
+                document.getElementById('modalGerenciaLabel').textContent = 'Alterar Registro';
+                document.getElementById('buttonSaveGerencia').textContent = 'Alterar Registro';
+                document.getElementById('modalRegistroId').value = item.id;
+                nomeInput.value = item.razao_social || item.nome || '';
+                docInput.value = item.cnpj || item.doc || '';
+            } else {
+                // Modo Criação
+                document.getElementById('modalGerenciaLabel').textContent = 'Criar Registro';
+                document.getElementById('buttonSaveGerencia').textContent = 'Criar Novo Registro';
+                document.getElementById('modalRegistroId').value = '';
+                nomeInput.value = '';
+                docInput.value = '';
+            }
+            button.onclick = () => {salvarRegistroModal()}
             modalInstanceGerencia.show();
         }
     }
 
-    function abrirModalEditarFatClass(id, origem) {
-        let item = registrosAtuais;
+    function abrirModalEditarFatClass(id, origem, inativo) {
         const entidade = document.getElementById('selectEntidade').value;
-        if (id && origem) {
-            if (!item) return;
-
+        if (inativo) {
             if (entidade === 'faturado') {
-                item = registrosAtuais.find(r => r.id === id && r.origem === origem);
+                const itemInativo = registrosInativos.find(r => r.id === id && r.origem === origem);
+                if (!itemInativo) return;
 
-                document.getElementById('modalFatId').value = item.id;
-                document.getElementById('modalRegistroOrigem').value = origem;
-                document.getElementById('inputNomeModalFat').value = item.nome || '';
-                document.getElementById('inputDocModalFat').value = item.doc || '';
+                const nomeInput = document.getElementById('inputNomeModalFat');
+                const docInput = document.getElementById('inputDocModalFat');
+                const tipoSelectFat = document.getElementById('modalRegistroOrigem');
+                const button = document.getElementById('buttonSave');
+                const campoContainer = document.getElementById('campoContainer');
 
+                if (campoContainer) {
+                    campoContainer.classList.remove('d-none');
+                }
+
+                document.getElementById('modalFatLabel').textContent = 'Restaurar Registro?';
+                button.textContent = 'Restaurar Registro';
+                document.getElementById('modalFatId').value = itemInativo.id;
+                tipoSelectFat.value = origem;
+
+                nomeInput.value = itemInativo.nome || '';
+                docInput.value = itemInativo.doc || '';
+
+                // Bloqueia a edição no modo restauração (incluindo o tipo)
+                nomeInput.disabled = true;
+                nomeInput.required = false;
+                docInput.disabled = true;
+                docInput.required = false;
+                tipoSelectFat.disabled = true;
+
+                button.onclick = () => { salvarRestauracaoGerencia(itemInativo.id, origem ); };
                 modalInstanceFat.show();
+
             } else if (entidade === 'classificacao') {
-                item = registrosAtuais.find(r => r.id === id && r.tipo === origem);
+                const itemInativo = registrosInativos.find(r => r.id === id && r.tipo === origem);
+                if (!itemInativo) return;
 
-                document.getElementById('modalRegistroClassId').value = item.id;
-                document.getElementById('inputTituloModal').value = item.categoria_pai || '';
-                document.getElementById('inputDescModal').value = item.descricao || '';
-                document.getElementById('selectTipoClassificacao').value = item.tipo || '';
+                const tituloInput = document.getElementById('inputTituloModal');
+                const descInput = document.getElementById('inputDescModal');
+                const tipoSelectClass = document.getElementById('selectTipoClassificacao');
+                const button = document.getElementById('ButtonSaveClass');
 
+                document.getElementById('modalGerenciaClassLabel').textContent = 'Restaurar Registro?';
+                button.textContent = 'Restaurar Registro';
+                document.getElementById('modalRegistroClassId').value = itemInativo.id;
+
+                tituloInput.value = itemInativo.categoria_pai || '';
+                descInput.value = itemInativo.descricao || '';
+                tipoSelectClass.value = itemInativo.tipo || 'Despesa';
+
+                // Bloqueia a edição no modo restauração
+                tituloInput.disabled = true;
+                tituloInput.required = false;
+                descInput.disabled = true;
+                descInput.required = false;
+                tipoSelectClass.disabled = true;
+
+                button.onclick = () => { salvarRestauracaoGerencia(itemInativo.id, itemInativo.tipo); };
                 modalInstanceClass.show();
             }
+
+            // -------------------------------------------------------------------------
+            // 2. MODO EDIÇÃO / CRIAÇÃO (REGISTRO ATIVO)
+            // -------------------------------------------------------------------------
         } else {
             if (entidade === 'faturado') {
-                document.getElementById('modalFatLabel').textContent = 'Criar Registro';
-                document.getElementById('buttonSave').textContent = 'Criar Novo Registro';
-                document.getElementById('campoContainer').classList.remove('d-none');
-                document.getElementById('modalRegistroOrigem').value = 'Faturado';
-                document.getElementById('modalFatId').value = '';
-                document.getElementById('inputNomeModalFat').value = '';
-                document.getElementById('inputDocModalFat').value = '';
+                const nomeInput = document.getElementById('inputNomeModalFat');
+                const docInput = document.getElementById('inputDocModalFat');
+                const tipoSelectFat = document.getElementById('modalRegistroOrigem');
+                const button = document.getElementById('buttonSave');
+                const campoContainer = document.getElementById('campoContainer');
 
+                // Habilita os campos para edição/criação
+                nomeInput.disabled = false;
+                nomeInput.required = true;
+                docInput.disabled = false;
+                docInput.required = true;
+                tipoSelectFat.disabled = false;
+                campoContainer.classList.add('d-none');
+
+                const item = (id && origem) ? registrosAtuais.find(r => r.id === id && r.origem === origem) : null;
+
+                if (item) {
+                    // Modo Edição
+                    document.getElementById('modalFatLabel').textContent = 'Alterar Registro';
+                    button.textContent = 'Alterar Registro';
+                    document.getElementById('modalFatId').value = item.id;
+                    tipoSelectFat.value = origem;
+                    nomeInput.value = item.nome || '';
+                    docInput.value = item.doc || '';
+                } else {
+                    // Modo Criação
+                    document.getElementById('modalFatLabel').textContent = 'Criar Registro';
+                    button.textContent = 'Criar Novo Registro';
+                    document.getElementById('campoContainer')?.classList.remove('d-none');
+                    tipoSelectFat.value = 'Faturado';
+                    document.getElementById('modalFatId').value = '';
+                    nomeInput.value = '';
+                    docInput.value = '';
+                }
+
+                button.onclick = () => { salvarRegistroModalFat(); };
                 modalInstanceFat.show();
-            } else if (entidade === 'classificacao') {
-                document.getElementById('modalGerenciaClassLabel').textContent = 'Criar Registro';
-                document.getElementById('ButtonSaveClass').textContent = 'Criar Novo Registro';
-                document.getElementById('modalRegistroClassId').value = '';
-                document.getElementById('inputTituloModal').value = '';
-                document.getElementById('inputDescModal').value = '';
-                document.getElementById('selectTipoClassificacao').value = 'Despesa';
 
+            } else if (entidade === 'classificacao') {
+                const tituloInput = document.getElementById('inputTituloModal');
+                const descInput = document.getElementById('inputDescModal');
+                const tipoSelectClass = document.getElementById('selectTipoClassificacao');
+                const button = document.getElementById('ButtonSaveClass');
+
+                // Habilita os campos para edição/criação
+                tituloInput.disabled = false;
+                tituloInput.required = true;
+                descInput.disabled = false;
+                tipoSelectClass.disabled = false; // <--- REHABILITADO AQUI
+
+                const item = (id && origem) ? registrosAtuais.find(r => r.id === id && r.tipo === origem) : null;
+
+                if (item) {
+                    // Modo Edição
+                    document.getElementById('modalGerenciaClassLabel').textContent = 'Alterar Registro';
+                    button.textContent = 'Alterar Registro';
+                    document.getElementById('modalRegistroClassId').value = item.id;
+                    tituloInput.value = item.categoria_pai || '';
+                    descInput.value = item.descricao || '';
+                    tipoSelectClass.value = item.tipo || '';
+                } else {
+                    // Modo Criação
+                    document.getElementById('modalGerenciaClassLabel').textContent = 'Criar Registro';
+                    button.textContent = 'Criar Novo Registro';
+                    document.getElementById('modalRegistroClassId').value = '';
+                    tituloInput.value = '';
+                    descInput.value = '';
+                    tipoSelectClass.value = 'Despesa';
+                }
+
+                button.onclick = () => { salvarRegistroModalClass(); };
                 modalInstanceClass.show();
             }
         }
@@ -520,11 +657,13 @@
         const entidade = document.getElementById('selectEntidade').value;
         const nome = document.getElementById('inputNomeModal').value;
         const doc = document.getElementById('inputDocModal').value;
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
 
         const response = await fetch('/api/gerencia/salvar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, entidade, nome, doc })
+            body: JSON.stringify({ id, entidade, nome, doc, idUser })
         });
 
         const result = await response.json();
@@ -542,11 +681,13 @@
         const origem = document.getElementById('modalRegistroOrigem').value;
         const nome = document.getElementById('inputNomeModalFat').value;
         const doc = document.getElementById('inputDocModalFat').value;
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
 
         const response = await fetch('/api/gerencia/salvar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, entidade, origem, nome, doc })
+            body: JSON.stringify({ id, entidade, origem, nome, doc, idUser })
         });
 
         const result = await response.json();
@@ -564,7 +705,8 @@
         const nome = document.getElementById('inputTituloModal').value;
         const desc = document.getElementById('inputDescModal').value;
         const tipo = document.getElementById('selectTipoClassificacao').value;
-        const usuarioLogado = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
 
         if (!nome) {
             alert('Por favor, informe a Categoria / Título!');
@@ -577,7 +719,7 @@
             nome: nome,
             desc: desc,
             tipo: tipo,
-            id_usuario: usuarioLogado.id
+            idUser: idUser
         };
 
         try {
@@ -603,10 +745,13 @@
     }
 
     async function deletarRegistro(id) {
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
+
         if (!confirm('Deseja realmente excluir este registro?')) return;
         const entidade = document.getElementById('selectEntidade').value;
 
-        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}&idUser=${idUser}`, { method: 'DELETE' });
         const result = await response.json();
 
         if (result.success) {
@@ -617,10 +762,13 @@
     }
 
     async function deletarRegistroFatClass(id, origem) {
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
+
         if (!confirm('Deseja realmente excluir este registro?')) return;
         const entidade = document.getElementById('selectEntidade').value;
 
-        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}&origem=${origem}`, { method: 'DELETE' });
+        const response = await fetch(`/api/gerencia/deletar?entidade=${entidade}&id=${id}&origem=${origem}&idUser=${idUser}`, { method: 'DELETE' });
         const result = await response.json();
 
         if (result.success) {
@@ -631,14 +779,58 @@
     }
 
     async function buscarInativos() {
+        const user = JSON.parse(localStorage.getItem('usuarioLogado'));
+        const idUser = user.id;
+
         const entidade = document.getElementById('selectEntidade').value;
-        const response = await fetch(`/api/gerencia/inativos?entidade=${entidade}`);
+        const response = await fetch(`/api/gerencia/inativos?entidade=${entidade}&idUser=${idUser}`);
         const result = await response.json();
 
         if (result.success) {
             console.log('Inativos encontrados:', result.data);
-            renderizarLinhasTabela(entidade, result.data);
+            registrosInativos = result.data;
+            renderizarLinhasTabela(entidade, registrosInativos, true);
         }
+    }
+
+    async function salvarRestauracaoGerencia(id, origem) {
+        /*const id = document.getElementById('modalRegistroId').value;*/
+        const entidade = document.getElementById('selectEntidade').value;
+        /*const origem = document.getElementById('modalRegistroOrigem')?.value || '';*/
+        const idUser = JSON.parse(localStorage.getItem('usuarioLogado')).id;
+
+        try {
+            const response = await fetch('/api/gerencia/restaurar', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entidade, id, origem , idUser})
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                modalInstanceGerencia.hide();
+                modalInstanceFat.hide();
+                modalInstanceClass.hide();
+
+                // Recarrega os registros inativos para atualizar a tabela
+                if (typeof buscarInativos === 'function') {
+                    buscarInativos();
+                } else if (typeof executarConsultaComFiltro === 'function') {
+                    executarConsultaComFiltro();
+                }
+            } else {
+                alert(result.error || 'Erro ao restaurar registro.');
+            }
+        } catch (err) {
+            console.error('Erro na requisição de restauração:', err);
+            alert('Falha de comunicação com o servidor.');
+        }
+    }
+
+    function fazerLogout() {
+        localStorage.removeItem('usuarioLogado');
+        window.location.href = '/login';
     }
 </script>
 

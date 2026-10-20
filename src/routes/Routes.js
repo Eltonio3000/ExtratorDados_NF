@@ -25,8 +25,8 @@ router.get('/extrairdados', (req, res) => {
 router.get('/historico', (req, res) => {
     res.sendFile(path.join(viewPath, 'Historico.html'));
 });
-router.get('/categorias', (req, res) => {
-    res.sendFile(path.join(viewPath, 'Categorias.html'));
+router.get('/gerencia', (req, res) => {
+    res.sendFile(path.join(viewPath, 'Gerencia.html'));
 });
 router.get('/configuracao', (req, res) => {
     res.sendFile(path.join(viewPath, 'Configuracao.html'));
@@ -40,7 +40,7 @@ router.post('/api/extrair-pdf', upload.single('pdfFile'), extrairDadosPDF);
 // ROTA DE VERIFICAÇÃO (Consulta no Banco)
 router.post('/api/extrair/consultar-existencia', async (req, res) => {
     try {
-        const { tipo_registro, fornecedor, faturado, classificacao } = req.body;
+        const { idUsuario, tipo_registro, fornecedor, faturado, classificacao } = req.body;
 
         const tabelaTPDestino = (tipo_registro === 'Receita') ? 'tipo_receita' : 'tipo_despesa';
 
@@ -55,8 +55,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (cnpjFormatado && cnpjFormatado.length >= 14) {
             const { data } = await supabase
                 .from('fornecedor')
-                .select('id, razao_social, cnpj')
+                .select('id, razao_social, cnpj, criador')
                 .eq('cnpj', cnpjFormatado)
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -68,8 +69,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (!fornecedorExistente && razaoLimpa && razaoLimpa.length > 2) {
             const { data } = await supabase
                 .from('fornecedor')
-                .select('id, razao_social, cnpj')
+                .select('id, razao_social, cnpj, criador')
                 .ilike('razao_social', razaoLimpa) // Sem %, exige o texto exato
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -88,8 +90,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (cpfFormatado && cpfFormatado.length >= 11 && tipo_registro === 'Despesa' ) {
             const { data } = await supabase
                 .from('faturado')
-                .select('id, nome_completo, cpf')
+                .select('id, nome_completo, cpf, criador')
                 .eq('cpf', cpfFormatado)
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -101,8 +104,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (!faturadoExistente && nomeLimpo && nomeLimpo.length > 2 && tipo_registro === 'Despesa') {
             const { data } = await supabase
                 .from('faturado')
-                .select('id, nome_completo, cpf')
+                .select('id, nome_completo, cpf, criador')
                 .ilike('nome_completo', nomeLimpo) // Sem %, exige o nome exato
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -116,8 +120,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (cpf_cnpjFormatado && cpf_cnpjFormatado.length >= 11 && tipo_registro === 'Receita' ) {
             const { data } = await supabase
                 .from('cliente')
-                .select('id, nome, cpf_cnpj')
+                .select('id, nome, cpf_cnpj, criador')
                 .eq('cpf_cnpj', cpf_cnpjFormatado)
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -129,8 +134,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (!faturadoExistente && nomeLimpo && nomeLimpo.length > 2 && tipo_registro === 'Receita') {
             const { data } = await supabase
                 .from('cliente')
-                .select('id, nome, cpf_cnpj')
+                .select('id, nome, cpf_cnpj, criador')
                 .eq('cpf_cnpj', cpf_cnpjFormatado)
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -147,8 +153,9 @@ router.post('/api/extrair/consultar-existencia', async (req, res) => {
         if (classifLimpa && classifLimpa.length > 2) {
             const { data } = await supabase
                 .from(tabelaTPDestino)
-                .select('id, categoria_pai')
+                .select('id, categoria_pai, criador')
                 .ilike('categoria_pai', `%${classifLimpa}%`)
+                .eq('criador', idUsuario)
                 .limit(1);
 
             if (data && data.length > 0) {
@@ -225,6 +232,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
                 .insert([{
                     razao_social: verificacao.fornecedor.dados.razao_social,
                     cnpj: verificacao.fornecedor.dados.cnpj,
+                    criador: id_usuario,
                     ativo: true
                 }])
                 .select()
@@ -241,6 +249,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
                     .insert([{
                         nome_completo: verificacao.faturado.dados.nome_completo,
                         cpf: verificacao.faturado.dados.cpf,
+                        criador: id_usuario,
                         ativo: true
                     }])
                     .select()
@@ -253,6 +262,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
                     .insert([{
                         nome: verificacao.faturado.dados.nome_completo,
                         cpf_cnpj: verificacao.faturado.dados.cpf,
+                        criador: id_usuario,
                         ativo: true
                     }])
                     .select()
@@ -324,6 +334,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
                     numero_nota_fiscal: numeroNota,
                     data_emissao: dataEmissaoFormatada,
                     descricao_produtos: dadosExtraidos.descricaoProdutos,
+                    criador: id_usuario,
                     valor_total: dadosExtraidos.valorTotal
                 }])
                 .select()
@@ -347,6 +358,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
                     numero_documento: numeroNota,
                     data_emissao: dataEmissaoFormatada,
                     descricao: dadosExtraidos.descricaoProdutos,
+                    criador: id_usuario,
                     valor_total: dadosExtraidos.valorTotal
                 }])
                 .select()
@@ -375,6 +387,7 @@ router.post('/api/extrair/salvar-nota', async (req, res) => {
 router.get('/api/notas/historico', async (req, res) => {
     try {
         const termo = req.query.termo ? String(req.query.termo).trim() : '';
+        const idUser = req.query.idUser;
         const termoLower = termo.toLowerCase();
 
         // -------------------------------------------------------------------------
@@ -391,10 +404,12 @@ router.get('/api/notas/historico', async (req, res) => {
                     descricao_produtos,
                     fornecedor ( id, razao_social, cnpj ),
                     faturado ( id, nome_completo, cpf ),
+                    criador,
                     conta_pagar_tipo_despesa (
                         tipo_despesa ( id, categoria_pai, descricao )
                     )
                 `)
+                .eq('criador', idUser)
                 .order('data_emissao', { ascending: false });
 
             if (error) throw error;
@@ -415,10 +430,12 @@ router.get('/api/notas/historico', async (req, res) => {
                     descricao,
                     fornecedor ( id, razao_social, cnpj ),
                     cliente ( id, nome, cpf_cnpj ),
+                    criador,
                     conta_receber_tipo_receita (
                         tipo_receita ( id, categoria_pai, descricao )
                     )
                 `)
+                .eq('criador', idUser)
                 .order('data_emissao', { ascending: false });
 
             if (error) throw error;
@@ -434,15 +451,17 @@ router.get('/api/notas/historico', async (req, res) => {
                     id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
                     fornecedor ( id, razao_social, cnpj ),
                     faturado ( id, nome_completo, cpf ),
+                    criador,
                     conta_pagar_tipo_despesa ( tipo_despesa ( id, categoria_pai, descricao ) )
-                `).order('data_emissao', { ascending: false }),
+                `).eq('criador', idUser).order('data_emissao', { ascending: false }),
 
                 supabase.from('conta_receber').select(`
                     id, numero_documento, data_emissao, valor_total, descricao,
                     fornecedor ( id, razao_social, cnpj ),
                     cliente ( id, nome, cpf_cnpj ),
+                    criador,
                     conta_receber_tipo_receita ( tipo_receita ( id, categoria_pai, descricao ) )
-                `).order('data_emissao', { ascending: false })
+                `).eq('criador', idUser).order('data_emissao', { ascending: false })
             ]);
 
             if (errDesp) throw errDesp;
@@ -463,9 +482,9 @@ router.get('/api/notas/historico', async (req, res) => {
         // 4. BUSCA COM TERMO GENÉRICO (Filtra Por Nome, Documento ou Número da Nota)
         // -------------------------------------------------------------------------
         const [{ data: fornecedores }, { data: faturados }, { data: clientes }] = await Promise.all([
-            supabase.from('fornecedor').select('id').ilike('razao_social', `%${termo}%`),
-            supabase.from('faturado').select('id').ilike('nome_completo', `%${termo}%`),
-            supabase.from('cliente').select('id').ilike('nome', `%${termo}%`)
+            supabase.from('fornecedor').select('id').ilike('razao_social', `%${termo}%`).eq('criador', idUser),
+            supabase.from('faturado').select('id').ilike('nome_completo', `%${termo}%`).eq('criador', idUser),
+            supabase.from('cliente').select('id').ilike('nome', `%${termo}%`).eq('criador', idUser)
         ]);
 
         const idsFornecedores = (fornecedores || []).map(f => f.id);
@@ -487,15 +506,17 @@ router.get('/api/notas/historico', async (req, res) => {
                 id, numero_nota_fiscal, data_emissao, valor_total, descricao_produtos,
                 fornecedor ( id, razao_social, cnpj ),
                 faturado ( id, nome_completo, cpf ),
+                criador,
                 conta_pagar_tipo_despesa ( tipo_despesa ( id, categoria_pai, descricao ) )
-            `).or(condDespesa.join(',')).order('data_emissao', { ascending: false }),
+            `).eq('criador', idUser).or(condDespesa.join(',')).order('data_emissao', { ascending: false }),
 
             supabase.from('conta_receber').select(`
                 id, numero_documento, data_emissao, valor_total, descricao,
                 id_fornecedor ( id, razao_social, cnpj ),
                 id_cliente ( id, nome, cpf_cnpj ),
+                criador,
                 conta_receber_tipo_receita ( id_tipo_receita ( id, categoria_pai, descricao ) )
-            `).or(condReceita.join(',')).order('data_emissao', { ascending: false })
+            `).eq('criador', idUser).or(condReceita.join(',')).order('data_emissao', { ascending: false })
         ]);
 
         if (errFiltroDesp) throw errFiltroDesp;
@@ -630,17 +651,27 @@ router.put('/api/notas/editar/:id', async (req, res) => {
 // DELETE - Excluir nota fiscal
 router.delete('/api/notas/excluir/:id', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id, } = req.params;
+        const { idUser, tipo } = req.query;
+
+        const tableAssTarget = tipo === 'Receita' ? 'conta_recceber_tipo_receita' : 'conta_pagar_tipo_despesa';
+        const tableTarget = tipo === 'Receita' ? 'conta_receber' : 'conta_pagar';
+        const fkNotaColuna = tipo === 'Receita' ? 'id_conta_receber' : 'id_conta_pagar';
+
+        if (!id && !idUser){
+            return res.status(400).json({ error: 'Parâmetros incompletos para realizar a exclusão.' });
+        }
 
         // Remove primeiro da tabela associativa
-        await supabase.from('conta_pagar_tipo_despesa').delete().eq('id_conta_pagar', id);
+        await supabase.from(tableAssTarget).delete().eq(fkNotaColuna, id);
 
         // Remove da tabela conta_pagar
-        const { error } = await supabase.from('conta_pagar').delete().eq('id', id);
+        const { error } = await supabase.from(tableTarget).delete().eq('id', id).eq('criador', idUser);
 
         if (error) throw error;
 
         return res.json({ success: true, message: 'Nota fiscal excluída com sucesso!' });
+
     } catch (error) {
         console.error('Erro ao excluir nota:', error);
         return res.status(500).json({ error: 'Erro ao excluir nota fiscal.' });
@@ -649,7 +680,7 @@ router.delete('/api/notas/excluir/:id', async (req, res) => {
 
 router.get('/api/gerencia/buscar', async (req, res) => {
     try {
-        const { entidade, termo } = req.query;
+        const { entidade, termo, idUser } = req.query;
         const busca = (termo || '').trim();
 
         let data = [];
@@ -657,8 +688,8 @@ router.get('/api/gerencia/buscar', async (req, res) => {
 
         if (entidade === 'faturado') {
             // Busca simultaneamente em 'faturado' e em 'cliente'
-            let queryFat = supabase.from('faturado').select('id, nome_completo, cpf, ativo').eq('ativo', true);
-            let queryCli = supabase.from('cliente').select('id, nome, cpf_cnpj, ativo').eq('ativo', true);
+            let queryFat = supabase.from('faturado').select('id, nome_completo, cpf, ativo, criador').eq('ativo', true).eq('criador', idUser);
+            let queryCli = supabase.from('cliente').select('id, nome, cpf_cnpj, ativo, criador').eq('ativo', true).eq('criador', idUser);
 
             if (busca) {
                 queryFat = queryFat.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%`);
@@ -691,15 +722,15 @@ router.get('/api/gerencia/buscar', async (req, res) => {
             data = [...listaFat, ...listaCli];
 
         } else if (entidade === 'fornecedor') {
-            let query = supabase.from('fornecedor').select('id, razao_social, cnpj, ativo').eq('ativo', true);;
+            let query = supabase.from('fornecedor').select('id, razao_social, cnpj, ativo').eq('ativo', true).eq('criador', idUser);
             if (busca) query = query.or(`razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%`);
             ({ data, error } = await query.order('id', { ascending: false }));
 
         } else if (entidade === 'classificacao') {
             // Busca tanto em tipo_despesa quanto em tipo_receita
             const [{ data: desp }, { data: rec }] = await Promise.all([
-                supabase.from('tipo_despesa').select('id, categoria_pai, descricao, ativo').eq('ativo', true),
-                supabase.from('tipo_receita').select('id, categoria_pai, descricao, ativo').eq('ativo', true)
+                supabase.from('tipo_despesa').select('id, categoria_pai, descricao, ativo, criador').eq('ativo', true).eq('criador', idUser),
+                supabase.from('tipo_receita').select('id, categoria_pai, descricao, ativo, criador').eq('ativo', true).eq('criador', idUser)
             ]);
 
             const listaDesp = (desp || []).map(d => ({ ...d, tipo: 'Despesa' }));
@@ -734,7 +765,7 @@ router.get('/api/gerencia/buscar', async (req, res) => {
 // Salvar (Editar/Criar) Registro Dinâmico
 router.post('/api/gerencia/salvar', async (req, res) => {
     try {
-        const { id, entidade, nome, doc, desc, tipo, id_usuario, origem } = req.body;
+        const { id, entidade, nome, doc, desc, tipo, idUser, origem } = req.body;
 
         // Trata o ID: se for string vazia, null ou undefined, vira undefined
         // Se tiver valor (edição), converte explicitamente para Number
@@ -749,24 +780,21 @@ router.post('/api/gerencia/salvar', async (req, res) => {
             const objetoDados = {
                 id: idValido,
                 [campoNome]: nome,
-                [campoDoc]: doc
+                [campoDoc]: doc,
+                criador: idUser
             };
 
             const { error } = await supabase
                 .from(tabelaTarget)
-                .upsert(objetoDados);
+                .upsert(objetoDados)
+                .eq('criador', idUser);
             if (error) throw error;
 
         } else if (entidade === 'fornecedor') {
             const { error } = await supabase
                 .from('fornecedor')
-                .upsert({ id: idValido, razao_social: nome, cnpj: doc });
-            if (error) throw error;
-
-        } else if (entidade === 'cliente') {
-            const { error } = await supabase
-                .from('cliente')
-                .upsert({ id: idValido, nome: nome, cpf_cnpj: doc });
+                .upsert({ id: idValido, razao_social: nome, cnpj: doc, criador: idUser })
+                .eq('criador', idUser);
             if (error) throw error;
 
         } else if (entidade === 'classificacao') {
@@ -782,7 +810,7 @@ router.post('/api/gerencia/salvar', async (req, res) => {
                     id: idValido,
                     categoria_pai: nome,
                     descricao: descricaoFinal,
-                    criador: id_usuario
+                    criador: idUser
                 });
 
             if (error) throw error;
@@ -798,7 +826,7 @@ router.post('/api/gerencia/salvar', async (req, res) => {
 // Deletar Registro Dinâmico
 router.delete('/api/gerencia/deletar', async (req, res) => {
     try {
-        const { entidade, id , origem} = req.query;
+        const { entidade, id , origem, idUser} = req.query;
 
         const origemLower = (origem || '').toLowerCase();
 
@@ -808,7 +836,7 @@ router.delete('/api/gerencia/deletar', async (req, res) => {
                     entidade === 'classificacao' && origemLower === 'receita' ? 'tipo_receita' :
                         'tipo_despesa';
 
-        const { error } = await supabase.from(tabela).update({ativo: false}).eq('id', id);
+        const { error } = await supabase.from(tabela).update({ativo: false}).eq('id', id).eq('criador', idUser);
         if (error) throw error;
 
         return res.json({ success: true, message: 'Registro excluído!' });
@@ -821,7 +849,7 @@ router.delete('/api/gerencia/deletar', async (req, res) => {
 // Rota para buscar apenas registros INATIVOS
 router.get('/api/gerencia/inativos', async (req, res) => {
     try {
-        const { entidade, termo } = req.query;
+        const { entidade, termo , idUser} = req.query;
         const busca = (termo || '').trim();
 
         let data = [];
@@ -832,12 +860,14 @@ router.get('/api/gerencia/inativos', async (req, res) => {
             let queryFat = supabase
                 .from('faturado')
                 .select('id, nome_completo, cpf, ativo')
-                .eq('ativo', false);
+                .eq('ativo', false)
+                .eq('criador', idUser);
 
             let queryCli = supabase
                 .from('cliente')
                 .select('id, nome, cpf_cnpj, ativo')
-                .eq('ativo', false);
+                .eq('ativo', false)
+                .eq('criador', idUser);
 
             if (busca) {
                 queryFat = queryFat.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%`);
@@ -875,7 +905,8 @@ router.get('/api/gerencia/inativos', async (req, res) => {
             let query = supabase
                 .from('fornecedor')
                 .select('id, razao_social, cnpj, ativo')
-                .eq('ativo', false);
+                .eq('ativo', false)
+                .eq('criador', idUser);
 
             if (busca) {
                 query = query.or(`razao_social.ilike.%${busca}%,cnpj.ilike.%${busca}%`);
@@ -889,11 +920,13 @@ router.get('/api/gerencia/inativos', async (req, res) => {
                 supabase
                     .from('tipo_despesa')
                     .select('id, categoria_pai, descricao, ativo')
-                    .eq('ativo', false),
+                    .eq('ativo', false)
+                    .eq('criador', idUser),
                 supabase
                     .from('tipo_receita')
                     .select('id, categoria_pai, descricao, ativo')
                     .eq('ativo', false)
+                    .eq('criador', idUser)
             ]);
 
             const listaDesp = (desp || []).map(d => ({ ...d, tipo: 'Despesa' }));
@@ -1034,6 +1067,43 @@ router.put('/api/usuario/alterar-senha', async (req, res) => {
     } catch (err) {
         console.error('Erro ao alterar senha:', err);
         return res.status(500).json({ error: 'Erro interno ao processar alteração de senha.' });
+    }
+});
+
+// Rota para RESTAURAR um registro
+router.put('/api/gerencia/restaurar', async (req, res) => {
+    try {
+        const { entidade, id, origem, idUser } = req.body;
+
+        if (!entidade || !id) {
+            return res.status(400).json({ error: 'Entidade e ID são obrigatórios.' });
+        }
+
+        const origemLower = (origem || '').toLowerCase();
+        let tabela = '';
+
+        // Mapeamento idêntico de tabelas
+        if (entidade === 'faturado') {
+            tabela = (origemLower === 'cliente') ? 'cliente' : 'faturado';
+        } else if (entidade === 'fornecedor') {
+            tabela = 'fornecedor';
+        } else if (entidade === 'classificacao') {
+            tabela = (origemLower === 'receita') ? 'tipo_receita' : 'tipo_despesa';
+        }
+
+        const { error } = await supabase
+            .from(tabela)
+            .update({ ativo: true })
+            .eq('id', id)
+            .eq('criador', idUser);
+
+        if (error) throw error;
+
+        return res.json({ success: true, message: 'Registro restaurado com sucesso!' });
+
+    } catch (err) {
+        console.error('Erro ao restaurar registro:', err);
+        return res.status(500).json({ error: 'Erro interno ao restaurar o registro.' });
     }
 });
 

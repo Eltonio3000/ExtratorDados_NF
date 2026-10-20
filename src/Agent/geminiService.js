@@ -39,10 +39,10 @@ export async function processarNotaFiscalPDF(caminhoArquivo,tipoRegistro, catego
     ValorTotal
     Classificação da nota fiscal
     
-    Classifique este lançamento do tipo ${tipoRegistro.toUpperCase()} com base nos itens da nota seguindo estas categorias:
+    Classifique este lançamento do tipo ${tipoRegistro.toUpperCase()} com base nos itens da nota seguindo estas categorias(atribua o valor de categoria_pai ao campo classificação):
     ${textoCategorias}
     
-    caso não encontra a classificação adequada dedusaa que faça mais sentido. ou coloque "Geral / Não Classificado"
+    caso não encontra a categoria pai adequada dedusa/crie a que faça mais sentido. ou coloque "Geral / Não Classificado"
   `;
 
   // Esquema de resposta estruturada em JSON

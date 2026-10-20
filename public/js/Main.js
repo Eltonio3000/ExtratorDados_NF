@@ -33,7 +33,7 @@ async function enviarPDF() {
     const formData = new FormData();
     formData.append('pdfFile', fileInput.files[0]);
     formData.append('tipo_registro', document.querySelector('input[name="tipoRegistro"]:checked')?.value);
-    formData.append('usuario', localStorage.getItem('usuarioLogado'));
+    formData.append('idUsuario', JSON.parse(localStorage.getItem('usuarioLogado')).id);
 
     // Estado de carregamento
     btnExtrair.disabled = true;
